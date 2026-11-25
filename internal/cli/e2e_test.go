@@ -154,10 +154,11 @@ resources:
 	}
 
 	// Enrolment refuses a server address the node cannot reach, before
-	// changing anything (the address here is a typo-style dead end).
+	// changing anything (the address here is a typo-style dead end). Where
+	// this test runs it may be refused earlier still: no systemd, or not root.
 	os.WriteFile(filepath.Join(dir, "secret"), []byte(strings.Repeat("s", 40)), 0o600)
 	out = fleetreeve(1, "enroll", "-i", "inventory.yaml", "-l", "web1", "-server", "http://127.0.0.1:1", "-secret-file", "secret")
-	if !strings.Contains(out, "cannot reach the server") && !strings.Contains(out, "systemd") {
+	if !strings.Contains(out, "cannot reach the server") && !strings.Contains(out, "systemd") && !strings.Contains(out, "needs root") {
 		t.Errorf("enroll with unreachable server:\n%s", out)
 	}
 
