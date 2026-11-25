@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // ProtocolVersion guards the controller <-> agent catalog format.
@@ -168,13 +169,31 @@ type Compiler interface {
 	Compile(r *Resource, cc CompileCtx) error
 }
 
-var registry = map[string]Type{}
+// The registry of resource types. Catalogs for several hosts are compiled
+// at once - by a controller for its hosts, by the server for the hosts
+// that happen to ask together - and compiling registers the types of
+// modules, so every access goes through the lock.
+var (
+	registryMu sync.RWMutex
+	registry   = map[string]Type{}
+)
 
-func Register(t Type) { registry[t.Name()] = t }
+func Register(t Type) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	registry[t.Name()] = t
+}
 
-func Lookup(name string) (Type, bool) { t, ok := registry[name]; return t, ok }
+func Lookup(name string) (Type, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	t, ok := registry[name]
+	return t, ok
+}
 
 func TypeNames() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	names := make([]string, 0, len(registry))
 	for n := range registry {
 		names = append(names, n)

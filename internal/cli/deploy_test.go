@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"net"
@@ -40,7 +39,7 @@ func TestClientDeployment(t *testing.T) {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	addr := ln.Addr().String()
 	ln.Close()
-	var log bytes.Buffer
+	var log logBuffer
 	srv := exec.Command(server, "serve", "-i", "inventory.yaml", "-secret-file", "secret", "-listen", addr, "site.yaml")
 	srv.Dir, srv.Stderr = dir, &log
 	if err := srv.Start(); err != nil {

@@ -6,6 +6,17 @@ minor version may change behaviour, and this file says where.
 
 ## Unreleased
 
+## 0.1.1
+
+- **Fixed: a crash when catalogs for several hosts were compiled at the
+  same moment** ("fatal error: concurrent map writes"). It could end a
+  `plan` or `apply` over several hosts, and the server when hosts pulled
+  together, in projects that use modules with script types. It was rare
+  and a second run succeeded; nothing was left half-applied.
+- `fleetreeve setup` run again keeps what the console may do (look only,
+  apply and roll back, shell commands) as the default answer.
+- The tests now also run under Go's race detector.
+
 ## 0.1.0
 
 The first public release.

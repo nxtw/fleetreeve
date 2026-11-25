@@ -291,11 +291,21 @@ func questions(a *asker, o *options) (*setupAnswers, error) {
 				fmt.Println("  Those were not the same.")
 			}
 		}
+		// What the console may do now is the default when setup runs again.
+		powers := 1
+		if env, err := os.ReadFile(setupEnv); err == nil {
+			switch {
+			case bytes.Contains(env, []byte("FLEETREEVE_EXEC_TOKEN=")):
+				powers = 2
+			case !bytes.Contains(env, []byte("FLEETREEVE_OPERATOR_TOKEN=")):
+				powers = 0
+			}
+		}
 		ans.Powers = a.choose("What may be done from the console?", []string{
 			"Look only",
 			"Also apply now, dry-run and roll back (for accounts with the operator role)",
 			"Also run shell commands on hosts as root (for admin accounts) - only if you really want that in a browser",
-		}, 1)
+		}, powers)
 	}
 
 	fmt.Println("\nAccess to hosts")

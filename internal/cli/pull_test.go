@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -78,7 +77,7 @@ func TestPullMode(t *testing.T) {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	addr := ln.Addr().String()
 	ln.Close()
-	var serverLog bytes.Buffer
+	var serverLog logBuffer
 	start := func() *exec.Cmd {
 		srv := exec.Command(bin, "serve", "-i", "inventory.yaml", "-secret-file", "secret", "-listen", addr,
 			"-tls-cert", cert, "-tls-key", key, "-reports", "reports", "-actions", "actions", "site.yaml")
@@ -339,7 +338,7 @@ func TestPullMode(t *testing.T) {
 	svc := exec.Command(bin, "pull", "-server", "https://"+addr, "-ca", cert, "-host", "web1", "-token-file", "token", "-every", "1h", "-poll", "5s", "-log-format", "json")
 	svc.Dir = dir
 	svc.Env = append(os.Environ(), "FLEETREEVE_CONFIG=none", "FLEETREEVE_STATE_DIR="+dir+"/state")
-	var svcLog bytes.Buffer
+	var svcLog logBuffer
 	svc.Stdout, svc.Stderr = &svcLog, &svcLog
 	if err := svc.Start(); err != nil {
 		t.Fatal(err)

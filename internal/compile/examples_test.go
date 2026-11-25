@@ -1,9 +1,11 @@
 package compile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/nxtw/fleetreeve/internal/core"
@@ -164,5 +166,38 @@ func TestFleetOnCentOS(t *testing.T) {
 	}
 	if _, err := os.Stat("../../examples/README.md"); err != nil {
 		t.Error("examples/README.md is missing")
+	}
+}
+
+// Catalogs are compiled for several hosts at once - a controller does it
+// for its hosts, the server for hosts that ask together - and each
+// compilation registers the types of the project's modules. That has to
+// be safe: run with -race, this fails on any unguarded shared state.
+func TestCompileInParallel(t *testing.T) {
+	inv, err := LoadInventory("../../examples/fleet/inventory.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := inv.Select("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 64)
+	for round := 0; round < 8; round++ {
+		for _, h := range hosts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := Compile(Input{Manifest: "../../examples/fleet/site.yaml", Host: h, Inventory: inv, Facts: centosFacts}); err != nil {
+					errs <- fmt.Errorf("%s: %v", h.Name, err)
+				}
+			}()
+		}
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
 	}
 }

@@ -20,6 +20,8 @@ jobs:
         run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
       - name: Vet and test
         run: make test
+      - name: Tests under the race detector
+        run: go test -race ./...
       - name: Build for every platform
         run: make build agents
       - name: Packages
