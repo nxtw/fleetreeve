@@ -1,0 +1,60 @@
+# nfpm definition of the `fleetreeve-server` package: the pull-mode server
+# service and the node builds it hands out.
+name: fleetreeve-server
+arch: ${GOARCH}
+platform: linux
+version: ${VERSION}
+release: ${RELEASE}
+maintainer: The fleetreeve authors <noreply@github.com>
+homepage: https://github.com/nxtw/fleetreeve
+vendor: The fleetreeve authors
+license: Apache-2.0
+section: admin
+description: |
+  Pull-mode server for fleetreeve.
+  Runs `fleetreeve serve`: compiles each node's catalog on request, collects
+  reports, and hands out the fleetreeve build and install script that let nodes
+  install and update themselves.
+
+depends:
+  - fleetreeve = ${VERSION}-${RELEASE}
+overrides:
+  deb:
+    depends:
+      - fleetreeve (= ${VERSION}-${RELEASE})
+
+contents:
+  - src: packaging/fleetreeve-server.service
+    dst: /usr/lib/systemd/system/fleetreeve-server.service
+    file_info: {mode: 0644}
+
+  # Builds served to nodes of either architecture (install.sh, self-update)
+  # and pushed over SSH by `fleetreeve enroll` / `fleetreeve apply`.
+  - src: bin/agents/fleetreeve-linux-amd64
+    dst: /usr/libexec/fleetreeve/agents/fleetreeve-linux-amd64
+    file_info: {mode: 0755}
+  - src: bin/agents/fleetreeve-linux-arm64
+    dst: /usr/libexec/fleetreeve/agents/fleetreeve-linux-arm64
+    file_info: {mode: 0755}
+
+  # Manifests and inventory: put a checkout of your repository here.
+  - dst: /srv/fleetreeve
+    type: dir
+    file_info: {mode: 0755}
+  # Secret and reports. The fleetreeve user is created by the pre-install script.
+  - dst: /var/lib/fleetreeve-server
+    type: dir
+    file_info: {mode: 0750, owner: fleetreeve, group: fleetreeve}
+  - dst: /etc/fleetreeve/tls
+    type: dir
+    file_info: {mode: 0750, owner: root, group: fleetreeve}
+
+scripts:
+  preinstall: packaging/scripts/pre-server.sh
+  postinstall: packaging/scripts/post.sh
+  preremove: packaging/scripts/preun-server.sh
+  postremove: packaging/scripts/postun-server.sh
+
+rpm:
+  summary: Pull-mode server for fleetreeve
+  group: System Environment/Daemons

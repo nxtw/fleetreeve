@@ -1,0 +1,3 @@
+# This one host listens on another port. Its firewall rule, SELinux label
+# and the load balancer's backend entry all follow.
+http_port: 9090

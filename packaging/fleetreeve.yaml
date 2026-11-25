@@ -1,0 +1,70 @@
+# nfpm definition of the `fleetreeve` package: the binary and the pull-mode
+# client service. Built by `make rpm` and `make deb`; VERSION and GOARCH come from there.
+name: fleetreeve
+arch: ${GOARCH}
+platform: linux
+version: ${VERSION}
+release: ${RELEASE}
+maintainer: The fleetreeve authors <noreply@github.com>
+homepage: https://github.com/nxtw/fleetreeve
+vendor: The fleetreeve authors
+license: Apache-2.0
+section: admin
+description: |
+  Declarative, agentless configuration management.
+  fleetreeve describes hosts as resources with dependencies, like Puppet, and
+  applies them over SSH without an agent, like Ansible. This package holds
+  the command-line tool and the optional pull-mode client service.
+
+contents:
+  - src: bin/agents/fleetreeve-linux-${GOARCH}
+    dst: /usr/bin/fleetreeve
+    file_info: {mode: 0755}
+
+  # The pull client. Not enabled on installation: `fleetreeve install` (or
+  # `fleetreeve enroll` from a controller) configures and starts it.
+  - src: packaging/fleetreeve-pull.service
+    dst: /usr/lib/systemd/system/fleetreeve-pull.service
+    file_info: {mode: 0644}
+
+  - dst: /etc/fleetreeve
+    type: dir
+    file_info: {mode: 0755}
+  - src: packaging/pull.conf
+    dst: /etc/fleetreeve/pull.conf
+    type: config|noreplace
+    file_info: {mode: 0600}
+  - dst: /etc/fleetreeve/facts.d
+    type: dir
+    file_info: {mode: 0755}
+
+  - src: README.md
+    dst: /usr/share/doc/fleetreeve/README.md
+    type: doc
+  - src: LICENSE
+    dst: /usr/share/doc/fleetreeve/LICENSE
+    type: doc
+  - src: NOTICE
+    dst: /usr/share/doc/fleetreeve/NOTICE
+    type: doc
+  - src: CHANGELOG.md
+    dst: /usr/share/doc/fleetreeve/CHANGELOG.md
+    type: doc
+  - src: docs
+    dst: /usr/share/doc/fleetreeve/docs
+    type: tree
+  - src: api/openapi.yaml
+    dst: /usr/share/doc/fleetreeve/api/openapi.yaml
+    type: doc
+  - src: examples
+    dst: /usr/share/doc/fleetreeve/examples
+    type: tree
+
+scripts:
+  postinstall: packaging/scripts/post.sh
+  preremove: packaging/scripts/preun-client.sh
+  postremove: packaging/scripts/postun-client.sh
+
+rpm:
+  summary: Declarative, agentless configuration management
+  group: System Environment/Base

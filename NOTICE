@@ -1,0 +1,8 @@
+fleetreeve
+Copyright 2026 The fleetreeve authors
+
+This product includes software developed by the fleetreeve authors
+(https://github.com/nxtw/fleetreeve).
+
+It is built with gopkg.in/yaml.v3, Copyright 2011-2019 Canonical Ltd.,
+licensed under the Apache License, Version 2.0 and the MIT License.

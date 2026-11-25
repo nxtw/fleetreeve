@@ -1,0 +1,15 @@
+# Hosts allowed to pull. In pull mode the inventory is the access list:
+# a node must be listed here and present the token for its own name.
+# No addresses are needed - the server never connects to a node.
+vars:
+  root: /tmp/fleetreeve-examples/pull      # so the demo runs without root
+  motd: "configuration served by fleetreeve"
+
+groups:
+  app:
+    hosts: [node-a, node-b]
+    vars: {workers: 4}
+
+hosts:
+  node-b:
+    vars: {workers: 8}

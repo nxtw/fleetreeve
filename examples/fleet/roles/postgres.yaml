@@ -1,0 +1,74 @@
+# PostgreSQL on the Red Hat family, with a tuning drop-in and a nightly
+# backup. (Debian keeps its configuration under /etc/postgresql/<version>/
+# and initialises the cluster itself, so this role is RHEL-layout only.)
+resources:
+  - package: [postgresql-server, cronie]
+
+  # The RHEL package does not create a database cluster.
+  - exec: initialise postgres cluster
+    command: postgresql-setup --initdb
+    creates: "{{ .pg_data }}/PG_VERSION"
+    require: package[postgresql-server]
+
+  # Settings go in a drop-in, so the packaged postgresql.conf is only
+  # touched by the one line that enables the drop-in directory.
+  - file: "{{ .pg_data }}/conf.d"
+    ensure: directory
+    owner: postgres
+    group: postgres
+    mode: 0700
+    require: exec[initialise postgres cluster]
+
+  - line: postgres include conf.d
+    path: "{{ .pg_data }}/postgresql.conf"
+    match: '^#?\s*include_dir\b'
+    line: "include_dir = 'conf.d'"
+    require: exec[initialise postgres cluster]
+    notify: exec[restart postgresql]
+
+  - file: "{{ .pg_data }}/conf.d/90-fleetreeve.conf"
+    content: |
+      # Managed by fleetreeve.
+      listen_addresses = '*'
+      max_connections = {{ .pg_max_connections }}
+      shared_buffers = {{ .pg_shared_buffers_mb }}MB
+      log_min_duration_statement = 500
+    owner: postgres
+    group: postgres
+    mode: 0600
+    notify: exec[restart postgresql]
+
+  - service: postgresql
+    ensure: running
+    enabled: true
+    require:
+      - line[postgres include conf.d]
+      - file[{{ .pg_data }}/conf.d/90-fleetreeve.conf]
+
+  # A restart, not a reload: shared_buffers needs one. Written as an exec
+  # handler so a config change restarts, while the service resource above
+  # only ever makes sure it is running.
+  - exec: restart postgresql
+    command: systemctl restart postgresql
+    refreshonly: true
+    require: service[postgresql]
+
+  - file: "{{ .backup_dir }}"
+    ensure: directory
+    owner: postgres
+    mode: 0750
+    require: package[postgresql-server]
+
+  - file: /usr/local/bin/pg-backup
+    template: ../templates/pg-backup.sh.tmpl
+    mode: 0755
+    validate: sh -n %s
+
+  - file: /etc/cron.d/pg-backup
+    content: |
+      MAILTO={{ .admin_email }}
+      15 2 * * * postgres /usr/local/bin/pg-backup
+    mode: 0644
+    require:
+      - package[cronie]
+      - file[/usr/local/bin/pg-backup]

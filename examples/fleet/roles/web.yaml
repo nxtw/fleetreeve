@@ -1,0 +1,13 @@
+# Web servers: nginx with one virtual host per entry in `sites`.
+#
+# nginx itself and the virtual-host type come from the fleetreeve.nginx module
+# (modules/fleetreeve.nginx); this role only says which sites this fleet has.
+include:
+  - module: fleetreeve.nginx
+
+resources:
+  - fleetreeve.nginx.vhost: "{{ .item.name }}"
+    each: "{{ .sites }}"
+    server_name: "{{ .item.name }}.{{ .domain }}"
+    root: "{{ .item.root }}"
+    port: "{{ .http_port }}"

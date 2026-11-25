@@ -1,0 +1,36 @@
+# Admin accounts with SSH keys and sudo. `admins` comes from the inventory.
+resources:
+  - group: admins
+
+  - user: "{{ .item.name }}"
+    each: "{{ .admins }}"
+    uid: "{{ .item.uid }}"
+    groups: [admins]
+    shell: /bin/bash
+    comment: "{{ .item.name }} (managed by fleetreeve)"
+
+  # A file is ordered after its directory, its owner and its group
+  # automatically, so no `require` is needed in this chain.
+  - file: "/home/{{ .item.name }}/.ssh"
+    each: "{{ .admins }}"
+    ensure: directory
+    owner: "{{ .item.name }}"
+    group: "{{ .item.name }}"
+    mode: 0700
+
+  - file: "/home/{{ .item.name }}/.ssh/authorized_keys"
+    each: "{{ .admins }}"
+    content: "{{ .item.key }}\n"
+    owner: "{{ .item.name }}"
+    group: "{{ .item.name }}"
+    mode: 0600
+
+  # A broken sudoers file locks everyone out, so it is checked before it
+  # replaces the live one.
+  - file: /etc/sudoers.d/admins
+    source: ../files/sudoers-admins
+    owner: root
+    group: root
+    mode: 0440
+    validate: visudo -cf %s
+    require: group[admins]

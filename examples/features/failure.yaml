@@ -1,0 +1,38 @@
+# What happens when something fails. This manifest is MEANT to fail:
+#
+#   fleetreeve apply examples/features/failure.yaml ; echo "exit: $?"
+#
+# The broken step fails, everything that depends on it is skipped, and
+# everything else still converges. The exit status is 1. Fix the command
+# (-e fixed=true) and run again: only the unfinished part runs.
+#
+# Runs without root.
+name: example-failure
+
+vars:
+  root: /tmp/fleetreeve-examples/failure
+  fixed: false
+
+resources:
+  - file: "{{ .root }}"
+    ensure: directory
+
+  - exec: download release
+    command: '{{ if .fixed }}echo v2 > {{ .root }}/release{{ else }}echo "connection refused" >&2; exit 7{{ end }}'
+    creates: "{{ .root }}/release"
+    require: file[{{ .root }}]
+
+  # Skipped: depends on the failed download.
+  - file: "{{ .root }}/release.conf"
+    content: "channel = stable\n"
+    require: exec[download release]
+
+  # Skipped too: depends on something that was skipped.
+  - exec: activate release
+    command: touch {{ .root }}/active
+    creates: "{{ .root }}/active"
+    require: file[{{ .root }}/release.conf]
+
+  # Not affected: unrelated to the failure, so it is applied regardless.
+  - file: "{{ .root }}/motd"
+    content: "maintenance window: none\n"

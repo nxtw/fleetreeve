@@ -1,0 +1,56 @@
+# fleetreeve server with Docker Compose (or `podman compose`).
+#
+#   mkdir manifests tls          # put site.yaml + inventory.yaml and the certificate here
+#   docker compose up -d --build
+#   docker compose logs -f                       # JSON, one object per line
+#   docker compose exec fleetreeve-server fleetreeve token \
+#       -secret-file /var/lib/fleetreeve-server/secret -ttl 24h -server https://fleetreeve.example.com:8140
+#
+# The server runs as uid 65532: server.key must be readable by it, e.g.
+#   chown 65532 tls/server.key && chmod 600 tls/server.key
+services:
+  fleetreeve-server:
+    image: fleetreeve-server:0.1.0
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    restart: unless-stopped
+    ports:
+      - "8140:8140"
+    volumes:
+      - ./manifests:/srv/fleetreeve:ro            # a checkout of your manifests; edits are live
+      - ./tls:/etc/fleetreeve/tls:ro
+      - fleetreeve-server-data:/var/lib/fleetreeve-server   # secret and reports - back this up
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  # The web console: a read-only view of the server above.
+  #   echo "FLEETREEVE_API_TOKEN=$(docker compose exec fleetreeve-server fleetreeve token \
+  #       -secret-file /var/lib/fleetreeve-server/secret -api read)" > dashboard.env
+  #   mkdir dashboard && sudo chown 65532 dashboard
+  #   sudo fleetreeve user add <name> -role admin -users dashboard/users.yaml
+  fleetreeve-dashboard:
+    image: fleetreeve-dashboard:0.1.0
+    build:
+      context: ../..
+      dockerfile: Containerfile.dashboard
+    restart: unless-stopped
+    depends_on: [fleetreeve-server]
+    ports:
+      - "8141:8141"
+    env_file: dashboard.env
+    environment:
+      FLEETREEVE_SERVER: https://fleetreeve-server:8140      # the certificate must be valid for this name
+      FLEETREEVE_CA: /etc/fleetreeve/tls/server.crt
+      FLEETREEVE_DASHBOARD_USERS: /etc/fleetreeve/dashboard/users.yaml
+    volumes:
+      - ./tls:/etc/fleetreeve/tls:ro
+      - ./dashboard:/etc/fleetreeve/dashboard      # read-write: accounts are managed in the console
+    command: ["-tls-cert", "/etc/fleetreeve/tls/server.crt", "-tls-key", "/etc/fleetreeve/tls/server.key"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  fleetreeve-server-data:

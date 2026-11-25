@@ -1,0 +1,38 @@
+# Pull-mode server, shipped by the fleetreeve-server package.
+#
+# Expects, by default:
+#   /srv/fleetreeve/site.yaml, /srv/fleetreeve/inventory.yaml   a checkout of your manifests
+#   /etc/fleetreeve/tls/server.crt, server.key             readable by group fleetreeve
+# The secret is created in /var/lib/fleetreeve-server on first start.
+# Change paths or the port with `systemctl edit fleetreeve-server`.
+[Unit]
+Description=fleetreeve pull-mode server
+Documentation=file:///usr/share/doc/fleetreeve/README.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/srv/fleetreeve/site.yaml
+
+[Service]
+User=fleetreeve
+Group=fleetreeve
+WorkingDirectory=/srv/fleetreeve
+ExecStart=/usr/bin/fleetreeve serve \
+    -i inventory.yaml \
+    -secret-file /var/lib/fleetreeve-server/secret \
+    -tls-cert /etc/fleetreeve/tls/server.crt \
+    -tls-key /etc/fleetreeve/tls/server.key \
+    -reports /var/lib/fleetreeve-server/reports \
+    -hosts /var/lib/fleetreeve-server/hosts \
+    -actions /var/lib/fleetreeve-server/actions \
+    -listen :8140 \
+    site.yaml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/fleetreeve-server
+
+[Install]
+WantedBy=multi-user.target

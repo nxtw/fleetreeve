@@ -1,0 +1,689 @@
+openapi: 3.0.3
+info:
+  title: fleetreeve server API
+  version: "1"
+  description: |
+    HTTP API of `fleetreeve serve`. All paths are on the server's port (8140 by
+    default). Requests and responses are JSON; errors are
+    `{"error": "..."}` with a matching status code.
+
+    **Authentication** is a bearer token, `Authorization: Bearer <token>`.
+    All tokens are derived from the server secret:
+
+    | Token | Obtained with | May |
+    | --- | --- | --- |
+    | read | `fleetreeve token -api read` | call every management GET |
+    | operator | `fleetreeve token -api operator` | also ask hosts to run their configuration now, and to roll resources back |
+    | exec | `fleetreeve token -api exec` | also run shell commands on hosts, as root |
+    | admin | `fleetreeve token -api admin` | also change hosts and mint tokens |
+    | node | `fleetreeve token <host>`, or by joining | fetch that host's catalog, post its reports |
+    | join | `fleetreeve token -ttl 24h` | obtain the node token of any known host, until it expires |
+
+    The admin token is as powerful as the secret: it can mint the token of
+    any host. Rotating the secret replaces every token at once.
+servers:
+  - url: https://fleetreeve.example.com:8140
+tags:
+  - name: management
+    description: Read the state of the fleet; manage hosts and tokens.
+  - name: node
+    description: Used by `fleetreeve pull`, `fleetreeve install` and `install.sh`.
+security:
+  - read: []
+paths:
+  /v1/health:
+    get:
+      tags: [management]
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: The server is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, example: ok}
+                  version: {type: string, example: 0.1.0}
+  /v1/status:
+    get:
+      tags: [management]
+      summary: Latest run of every host and manifest
+      responses:
+        "200":
+          description: Fleet status.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/hosts:
+    get:
+      tags: [management]
+      summary: Hosts the server knows, from its inventory and its registry
+      responses:
+        "200":
+          description: Hosts, sorted by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hosts:
+                    type: array
+                    items: {$ref: "#/components/schemas/Host"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/hosts/{name}:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+    get:
+      tags: [management]
+      summary: One host; with the admin token, also the variables its catalog is compiled from
+      responses:
+        "200":
+          description: The host. `vars` is the merge of inventory, group and host variables; it is left out unless the admin token is used, since variables may hold secrets.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Host"}
+        "404": {$ref: "#/components/responses/Error"}
+    put:
+      tags: [management]
+      summary: Register a host, so that it may pull
+      description: |
+        Adds the host to the server's registry (`fleetreeve serve -hosts`). A host
+        already in the inventory file is left to that file. This is what
+        `fleetreeve enroll` calls.
+      security: [{admin: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                groups: {type: array, items: {type: string}}
+                vars: {type: object, additionalProperties: true}
+      responses:
+        "200":
+          description: Registered, or already in the inventory.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [registered, inventory]}
+                  unknown_groups:
+                    type: array
+                    items: {type: string}
+                    description: Groups the server's inventory does not define; they bring the host no variables.
+        "409":
+          description: The host is not in the inventory and the server has no registry.
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    delete:
+      tags: [management]
+      summary: Remove a host from the registry, revoking its access
+      security: [{admin: []}]
+      responses:
+        "204": {description: Removed, or was not registered.}
+  /v1/hosts/{name}/reports/{manifest}:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+      - name: manifest
+        in: path
+        required: true
+        schema: {type: string}
+        description: Manifest name; `-` for a report from a client too old to name it.
+    get:
+      tags: [management]
+      summary: A stored report in full, resource by resource
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Report"}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/hosts/{name}/actions:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+    post:
+      tags: [management]
+      summary: Ask a host to run its configuration, roll a resource back, or run a command
+      description: |
+        The request is queued; the host collects it the next time it asks
+        the server (by default once a minute), carries it out and reports
+        the outcome. The server never connects to the host.
+
+        `apply`, `plan`, `rollback` and `release` need the operator token.
+        They give no new power over a host: it does what its next run
+        would do, or returns to a version it kept itself. `command` runs a
+        shell command as root and needs the **exec** token.
+      security: [{operator: []}, {exec: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: {type: string, enum: [apply, plan, rollback, release, command]}
+                manifest: {type: string, example: site, description: "For rollback and release."}
+                resource: {type: string, example: "file[/etc/motd]", description: "For rollback and release."}
+                command: {type: string, example: "systemctl status nginx --no-pager", description: "For command; run with /bin/sh -c as root."}
+                timeout: {type: integer, default: 60, maximum: 600, description: "Seconds after which a command is stopped."}
+                requested_by: {type: string, description: "Who asked, for the record."}
+      responses:
+        "202":
+          description: Queued.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Action"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409":
+          description: The same request is already waiting, or the server was started without `-actions`.
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+  /v1/hosts/{name}/actions/{id}:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+      - {name: id, in: path, required: true, schema: {type: string}}
+    delete:
+      tags: [management]
+      summary: Withdraw a request the host has not collected yet
+      security: [{operator: []}]
+      responses:
+        "204": {description: Withdrawn.}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/actions/claim:
+    post:
+      tags: [node]
+      summary: Collect the requests waiting for the calling host
+      description: Each request is handed out once.
+      security: [{node: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host: {type: string}
+      responses:
+        "200":
+          description: The requests, possibly none.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items: {$ref: "#/components/schemas/Action"}
+  /v1/actions:
+    get:
+      tags: [management]
+      summary: Requests waiting for hosts, and what hosts carried out lately
+      description: Includes the output of commands, so it needs the operator or exec token rather than the read token.
+      security: [{operator: []}, {exec: []}]
+      responses:
+        "200":
+          description: Waiting requests and recent results (the last 30 per host), newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: array
+                    items: {$ref: "#/components/schemas/Action"}
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/ActionResult"}
+  /v1/history:
+    get:
+      tags: [management]
+      summary: The log of every run and request, to scroll back through
+      description: >
+        One event per run a host reported (also runs that found everything in
+        order) and per request a host carried out, newest first. The server
+        appends them to one file per day and keeps them for `-history-days`
+        days (90 by default). Diffs of file contents and the text and output
+        of commands are not part of it.
+      parameters:
+        - {name: host, in: query, schema: {type: string}, description: Only this host.}
+        - {name: only, in: query, schema: {type: string, enum: [changes]}, description: "Leave out runs that found everything in order."}
+        - {name: before, in: query, schema: {type: string}, description: "The `next` of the previous page, for older events."}
+        - {name: limit, in: query, schema: {type: integer, default: 100, maximum: 1000}}
+      responses:
+        "200":
+          description: A page of events, and where to continue.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items: {$ref: "#/components/schemas/Event"}
+                  next: {type: string, description: "Pass as `before` for older events; empty at the beginning of the history."}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/actions/results:
+    post:
+      tags: [node]
+      summary: Report what became of collected requests
+      security: [{node: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host, results]
+              properties:
+                host: {type: string}
+                results:
+                  type: array
+                  items: {$ref: "#/components/schemas/ActionResult"}
+      responses:
+        "204": {description: Stored.}
+  /v1/tokens:
+    post:
+      tags: [management]
+      summary: Get the node token of a known host
+      security: [{admin: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host: {type: string}
+      responses:
+        "200":
+          description: The token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  host: {type: string}
+                  token: {type: string}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/join-tokens:
+    post:
+      tags: [management]
+      summary: Mint a join token for provisioning new nodes
+      security: [{admin: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ttl: {type: string, default: 24h, description: "A duration such as 30m or 24h."}
+      responses:
+        "200":
+          description: The token and when it expires.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: {type: string}
+                  expires: {type: string, format: date-time}
+  /v1/catalog:
+    post:
+      tags: [node]
+      summary: Compile and return the calling host's catalog
+      security: [{node: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host: {type: string}
+                facts: {type: object, additionalProperties: true}
+      responses:
+        "200": {description: The catalog to apply.}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "422":
+          description: The manifest does not compile for this host.
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+  /v1/report:
+    post:
+      tags: [node]
+      summary: Store the report of a run
+      security: [{node: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Report"}
+      responses:
+        "204": {description: Stored.}
+  /v1/cert:
+    post:
+      tags: [node]
+      summary: A certificate for a host, signed by the certificate authority
+      description: >
+        Only on a server with a certificate authority (HashiCorp Vault). The
+        host sends a certificate request for a key it made itself. It is
+        answered when the host shows its current certificate (a renewal) or,
+        while it has none, its token. The certificate is issued for the
+        host's name whatever the request says. Once a host has a certificate
+        its token gets it no other: enrol it again with `-new-cert` to start
+        over.
+      security: [{node: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host, csr]
+              properties:
+                host: {type: string}
+                csr: {type: string, description: A PEM certificate request.}
+      responses:
+        "200":
+          description: The certificate, followed by its issuers, as PEM.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  certificate: {type: string}
+                  not_after: {type: string, format: date-time}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "502": {$ref: "#/components/responses/Error"}
+  /v1/certs:
+    get:
+      tags: [management]
+      summary: The certificate of every host that has one
+      description: Only on a server with a certificate authority.
+      responses:
+        "200":
+          description: Hosts and their current certificates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authority: {type: string, enum: [vault]}
+                  required: {type: boolean, description: Whether hosts must show a certificate.}
+                  certificates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        host: {type: string}
+                        serial: {type: string}
+                        issued: {type: string, format: date-time}
+                        not_after: {type: string, format: date-time}
+                        expired: {type: boolean}
+        "401": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/certs/{name}:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+    delete:
+      tags: [management]
+      summary: Revoke a host's certificate and forget it
+      description: >
+        The certificate is revoked at the authority and no longer accepted
+        here. The host stays known: at its next run it gets a new
+        certificate with its token. To cut a host off, remove the host.
+      security: [{admin: []}]
+      responses:
+        "204": {description: Revoked and forgotten.}
+        "401": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/join:
+    post:
+      tags: [node]
+      summary: Trade a join token for the host's own node token
+      security: [{join: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host]
+              properties:
+                host: {type: string}
+      responses:
+        "200":
+          description: The node token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: {type: string}
+  /v1/agent/{platform}:
+    get:
+      tags: [node]
+      summary: Download the fleetreeve build for a platform
+      description: "`{platform}` is e.g. `linux-amd64`; append `.sha256` for its checksum."
+      security: []
+      parameters:
+        - {name: platform, in: path, required: true, schema: {type: string, example: linux-amd64}}
+      responses:
+        "200": {description: The binary, or its SHA-256 in hex.}
+        "404": {$ref: "#/components/responses/Error"}
+  /install.sh:
+    get:
+      tags: [node]
+      summary: Bootstrap script that installs the pull client on a node
+      security: []
+      responses:
+        "200": {description: A shell script.}
+components:
+  securitySchemes:
+    read: {type: http, scheme: bearer, description: "`fleetreeve token -api read`"}
+    operator: {type: http, scheme: bearer, description: "`fleetreeve token -api operator` (the admin token works too)"}
+    exec: {type: http, scheme: bearer, description: "`fleetreeve token -api exec`: may also run shell commands on hosts, as root"}
+    admin: {type: http, scheme: bearer, description: "`fleetreeve token -api admin`"}
+    node: {type: http, scheme: bearer, description: "A host's own token."}
+    join: {type: http, scheme: bearer, description: "A join token."}
+  responses:
+    Error:
+      description: The request was refused.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+    Action:
+      type: object
+      properties:
+        id: {type: string}
+        host: {type: string}
+        manifest: {type: string}
+        kind: {type: string, enum: [apply, plan, rollback, release, command]}
+        resource: {type: string}
+        command: {type: string}
+        timeout: {type: integer}
+        requested_by: {type: string}
+        queued: {type: string, format: date-time}
+    Event:
+      type: object
+      description: One line of the history - a run a host reported, or a request it carried out.
+      required: [time, host, kind]
+      properties:
+        time: {type: string, format: date-time}
+        host: {type: string}
+        kind: {type: string, enum: [run, request]}
+        manifest: {type: string}
+        source: {type: string, enum: [pull, push], description: Runs only.}
+        mode: {type: string, enum: [apply, plan], description: Runs only.}
+        state: {type: string, enum: [ok, changed, drift, failed, error], description: Runs only.}
+        summary: {type: object, description: "Runs only: the counts of the run, as in a report."}
+        cached: {type: boolean}
+        error: {type: string}
+        changes:
+          type: array
+          description: Runs only - the resources that were not simply in sync.
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              status: {type: string}
+              props: {type: array, items: {type: string}, description: 'Such as "mode: 0644 -> 0600".'}
+              refresh: {type: boolean}
+              drifted: {type: boolean}
+              orphan: {type: string}
+              held: {type: boolean}
+              error: {type: string}
+        request: {type: string, enum: [apply, plan, rollback, release, command], description: Requests only.}
+        resource: {type: string}
+        requested_by: {type: string}
+        status: {type: string}
+        detail: {type: string}
+        exit: {type: integer, description: Of a command.}
+    ActionResult:
+      allOf:
+        - {$ref: "#/components/schemas/Action"}
+        - type: object
+          properties:
+            status: {type: string, enum: [done, restored, released, failed]}
+            detail: {type: string}
+            output: {type: string, description: "Of a command: both streams, cut off at 64 KB."}
+            exit: {type: integer, description: "Exit status of a command; -1 when it was stopped."}
+            done: {type: string, format: date-time}
+    Summary:
+      type: object
+      properties:
+        total: {type: integer}
+        ok: {type: integer}
+        changed: {type: integer}
+        pending: {type: integer, description: "Plan only: resources that differ."}
+        failed: {type: integer}
+        skipped: {type: integer}
+        refreshed: {type: integer}
+        forgotten: {type: integer}
+        rolled_back: {type: integer, description: "Changes undone automatically in this run."}
+        held: {type: integer, description: "Resources left alone after a manual rollback."}
+        ms: {type: integer}
+    StatusEntry:
+      type: object
+      properties:
+        host: {type: string}
+        manifest: {type: string}
+        source: {type: string, enum: [pull, push]}
+        mode: {type: string, enum: [apply, plan]}
+        state:
+          type: string
+          enum: [ok, changed, drift, failed, error, stale]
+          description: |
+            `drift`: a plan found differences. `stale`: the node missed two
+            check-ins. `failed`, `error` and `stale` need attention.
+        time: {type: string, format: date-time}
+        age_seconds: {type: integer}
+        interval_seconds: {type: integer, description: "How often the node pulls; absent for one-off runs."}
+        cached_catalog: {type: boolean, description: "The node could not reach the server and enforced its cached catalog."}
+        error: {type: string}
+        summary: {$ref: "#/components/schemas/Summary"}
+    Status:
+      type: object
+      properties:
+        generated: {type: string, format: date-time}
+        healthy: {type: boolean, description: "No entry is failed, in error or stale."}
+        reports:
+          type: array
+          items: {$ref: "#/components/schemas/StatusEntry"}
+        missing:
+          type: array
+          items: {type: string}
+          description: Known hosts that never reported.
+    Host:
+      type: object
+      properties:
+        name: {type: string}
+        groups: {type: array, items: {type: string}}
+        source: {type: string, enum: [inventory, registered]}
+        registered: {type: string, format: date-time}
+        vars: {type: object, additionalProperties: true, description: "Only in GET /v1/hosts/{name}, and only with the admin token."}
+        reports:
+          type: array
+          items: {$ref: "#/components/schemas/StatusEntry"}
+        pending_actions:
+          type: array
+          items: {$ref: "#/components/schemas/Action"}
+          description: Requests waiting for the host's next check-in. The text of a waiting shell command is left out unless the admin token is used.
+    Report:
+      type: object
+      properties:
+        host: {type: string}
+        manifest: {type: string}
+        source: {type: string, enum: [pull, push]}
+        mode: {type: string, enum: [apply, plan]}
+        version: {type: string}
+        time: {type: string, format: date-time}
+        interval: {type: integer}
+        cached: {type: boolean}
+        error: {type: string}
+        summary: {$ref: "#/components/schemas/Summary"}
+        restorable:
+          type: array
+          description: Resources the host could roll back, and those on hold.
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              time: {type: string, format: date-time, description: "When it was last changed."}
+              remaining: {type: integer, description: "Earlier versions kept."}
+              held: {type: string, format: date-time, description: "Set when the resource is on hold."}
+        actions:
+          type: array
+          description: Requests the host carried out before this run.
+          items:
+            allOf:
+              - {$ref: "#/components/schemas/Action"}
+              - type: object
+                properties:
+                  status: {type: string, enum: [restored, released, failed]}
+                  detail: {type: string}
+                  done: {type: string, format: date-time}
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, example: "file[/etc/motd]"}
+              status:
+                type: string
+                enum: [ok, changed, pending, failed, skipped, rolledback]
+                description: "`rolledback` follows an earlier `changed` for the same resource: the change was undone because something it notified failed."
+              held: {type: boolean, description: "Left alone after a manual rollback, until released."}
+              changes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    prop: {type: string}
+                    from: {type: string}
+                    to: {type: string}
+              refresh: {type: boolean}
+              drifted: {type: boolean}
+              orphan: {type: string, enum: [remove, forget]}
+              error: {type: string}
+              origin: {type: string}
+              since: {type: string, format: date-time, description: "When fleetreeve last changed the resource on this host; absent when it never had to."}
+              created: {type: boolean, description: "fleetreeve brought the resource into being, rather than finding it there."}
+              ms: {type: integer}

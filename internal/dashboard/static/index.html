@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fleetreeve console</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c1730'/%3E%3Cpath d='M7 24h18M10 18.5h12M13 13h6M15 8h2' stroke='%23fff' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<aside class="rail" aria-label="Console">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 25h22M9 19h14M12.5 13h7M15 7.5h2"/></svg>
+    <div>
+      <div class="brand-name">fleetreeve</div>
+      <div class="brand-sub">Configuration console</div>
+    </div>
+  </div>
+  <nav>
+    <a href="#overview" class="nav-item is-current" data-nav="overview">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 11.5 10 4l7 7.5M5.5 9.5V16h9V9.5"/></svg>Overview</a>
+    <a href="#hosts" class="nav-item" data-nav="hosts">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="5" rx="1.5"/><rect x="3" y="11" width="14" height="5" rx="1.5"/><path d="M6 6.5h.01M6 13.5h.01"/></svg>Hosts
+      <span class="nav-count" id="nav-hosts"></span></a>
+    <a href="#attention" class="nav-item" data-nav="attention">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5 17.5 16h-15zM10 8.5v3.5M10 14.2h.01"/></svg>Needs attention
+      <span class="nav-count is-alert" id="nav-attention" hidden></span></a>
+    <button class="nav-item" id="nav-log" type="button">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/></svg>Log</button>
+    <button class="nav-item" id="nav-run" type="button" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4.500v11l9-5.500z"/></svg>Run</button>
+    <button class="nav-item" id="nav-accounts" type="button" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.5" cy="7" r="3"/><path d="M2 16c.6-2.7 2.7-4 5.5-4s4.900 1.300 5.5 4M13.5 4.2a3 3 0 0 1 0 5.6M15 12.3c1.7.5 2.7 1.8 3 3.7"/></svg>Accounts</button>
+  </nav>
+  <div class="rail-foot">
+    <dl>
+      <dt>Server</dt><dd id="server-name">…</dd>
+      <dt>Version</dt><dd id="server-version">…</dd>
+    </dl>
+    <div class="who" id="who" hidden>
+      <div><span id="who-name"></span><small id="who-role"></small></div>
+      <button class="ghost" id="signout" type="button">Sign out</button>
+    </div>
+    <button class="ghost" id="change-password" type="button" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg><span>Change password</span></button>
+    <button class="ghost" id="theme" type="button" aria-label="Switch between light and dark theme">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 11.5A7 7 0 0 1 8.5 3.5a7 7 0 1 0 8 8z"/></svg><span>Dark theme</span></button>
+  </div>
+</aside>
+
+<main id="main">
+  <header class="top">
+    <div>
+      <h1>Fleet overview</h1>
+      <p class="lede" id="lede">Loading the state of your hosts…</p>
+    </div>
+    <div class="top-actions">
+      <span class="live" id="live"><i></i><span id="live-text">Connecting</span></span>
+      <button class="button" id="refresh" type="button">Refresh now</button>
+    </div>
+  </header>
+
+  <div class="banner" id="demo-banner" hidden>You are looking at generated demo data, not a real fleet. Start the dashboard with a server address to see your own hosts.</div>
+  <div class="banner is-error" id="error-banner" hidden></div>
+
+  <section class="hero" id="overview" aria-labelledby="hero-title">
+    <div class="hero-figure">
+      <h2 id="hero-title">Hosts in their desired state</h2>
+      <div class="figure"><span id="compliance">–</span><small>%</small></div>
+      <p id="compliance-note"></p>
+    </div>
+    <div class="hero-matrix">
+      <div class="panel-head">
+        <h2>Every host, by role</h2>
+        <ul class="legend" id="matrix-legend"></ul>
+      </div>
+      <div class="matrix" id="matrix" role="list"></div>
+    </div>
+  </section>
+
+  <section class="tiles" id="tiles" aria-label="Hosts by state"></section>
+
+  <section class="split">
+    <article class="panel">
+      <div class="panel-head">
+        <h2>Share of hosts in their desired state</h2>
+        <span class="muted" id="trend-range"></span>
+      </div>
+      <div class="chart" id="trend"></div>
+    </article>
+    <article class="panel">
+      <div class="panel-head"><h2>Last run of each host</h2></div>
+      <div class="segbar" id="segbar" role="img"></div>
+      <ul class="legend is-rows" id="seg-legend"></ul>
+      <dl class="facts" id="facts"></dl>
+    </article>
+  </section>
+
+  <section class="panel" id="attention" aria-labelledby="attention-title">
+    <div class="panel-head"><h2 id="attention-title">Needs attention</h2></div>
+    <div id="attention-list"></div>
+  </section>
+
+  <section class="panel" id="hosts" aria-labelledby="hosts-title">
+    <div class="panel-head">
+      <h2 id="hosts-title">Hosts</h2>
+      <span class="muted" id="hosts-count"></span>
+    </div>
+    <div class="filters">
+      <label class="search"><span class="sr">Search hosts</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13.2 13.2 3.8 3.8"/></svg>
+        <input id="q" type="search" placeholder="Search by host, role or manifest" autocomplete="off"></label>
+      <div class="chips" id="chips" role="group" aria-label="Filter by state"></div>
+    </div>
+    <div class="table-wrap">
+      <table id="table">
+        <thead><tr>
+          <th data-sort="state"><button type="button">State</button></th>
+          <th data-sort="name"><button type="button">Host</button></th>
+          <th data-sort="groups"><button type="button">Roles</button></th>
+          <th data-sort="manifest"><button type="button">Manifest</button></th>
+          <th data-sort="age" class="num"><button type="button">Last run</button></th>
+          <th data-sort="total" class="num"><button type="button">Resources</button></th>
+          <th data-sort="changed" class="num"><button type="button">Changed</button></th>
+          <th data-sort="failed" class="num"><button type="button">Failed</button></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="empty" id="empty" hidden>No hosts match these filters.</p>
+      <button class="more" id="more" type="button" hidden>Show all hosts</button>
+    </div>
+  </section>
+
+  <footer class="foot">Read-only console. It shows what hosts reported to the fleetreeve server; it cannot change them.</footer>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-labelledby="drawer-title" aria-hidden="true" tabindex="-1">
+  <header>
+    <div>
+      <h2 id="drawer-title">Host</h2>
+      <p class="muted" id="drawer-sub"></p>
+    </div>
+    <button class="ghost icon" id="drawer-close" type="button" aria-label="Close host details">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
+  </header>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

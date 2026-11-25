@@ -1,0 +1,34 @@
+# Container image of the fleetreeve web console (`fleetreeve dashboard`): a
+# read-only view of a fleetreeve server, as its own container.
+#
+#   make image-dashboard                     # or:
+#   podman build -f Containerfile.dashboard -t fleetreeve-dashboard:0.1.0 .
+#
+# Configure it through the environment:
+#   FLEETREEVE_SERVER          the fleetreeve server, e.g. https://fleetreeve.example.com:8140
+#   FLEETREEVE_API_TOKEN       the server's READ token (fleetreeve token -api read)
+#   FLEETREEVE_CA              CA file for a private or self-signed server certificate
+#   FLEETREEVE_DASHBOARD_USERS accounts file (managed with `fleetreeve user`), mounted in
+#   FLEETREEVE_OPERATOR_TOKEN  optional (fleetreeve token -api operator): lets people with
+#                         the operator role run and roll back from the console
+#   FLEETREEVE_EXEC_TOKEN      optional (fleetreeve token -api exec): lets admins run shell
+#                         commands on hosts, as root
+# and pass -tls-cert/-tls-key as arguments to serve HTTPS. It listens on 8141.
+# The image holds one static binary; the UI is compiled into it.
+
+FROM docker.io/library/golang:1.25 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+ARG VERSION=0.1.0
+RUN CGO_ENABLED=0 go build -trimpath \
+        -ldflags "-s -w -X github.com/nxtw/fleetreeve/internal/cli.Version=${VERSION}" \
+        -o /out/fleetreeve ./cmd/fleetreeve
+
+FROM scratch
+COPY --from=build /out/fleetreeve /usr/bin/fleetreeve
+USER 65532:65532
+EXPOSE 8141
+ENTRYPOINT ["/usr/bin/fleetreeve", "dashboard"]

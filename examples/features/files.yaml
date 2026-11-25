@@ -1,0 +1,69 @@
+# The `file` type: directories, content from four sources, links, removal.
+#
+#   fleetreeve plan  examples/features/files.yaml
+#   fleetreeve apply examples/features/files.yaml
+#   fleetreeve apply examples/features/files.yaml -e listen=9090     # one-line diff
+#
+# Runs without root; everything lands under /tmp/fleetreeve-examples/files.
+name: example-files
+
+vars:
+  root: /tmp/fleetreeve-examples/files
+  app_name: demo
+  listen: 8080
+  settings:
+    log_level: info
+    workers: 4
+
+resources:
+  # A directory. Files below it are ordered after it automatically.
+  - file: "{{ .root }}"
+    ensure: directory
+    mode: 0755
+
+  # 1. Inline content. Any string may use variables and facts.
+  - file: "{{ .root }}/motd"
+    content: |
+      Welcome to {{ .facts.hostname }} ({{ .facts.os.pretty }}, {{ .facts.arch }})
+      This file is managed by fleetreeve; local edits will be reverted.
+
+  # 2. A file copied byte for byte from next to the manifest.
+  - file: "{{ .root }}/logo.svg"
+    source: assets/logo.svg
+
+  # 3. A template rendered on the controller.
+  - file: "{{ .root }}/app.ini"
+    template: assets/app.ini.tmpl
+    mode: 0640
+
+  # 4. Structured data serialised by a template function.
+  - file: "{{ .root }}/settings.json"
+    content: |
+      {{ toJson .settings }}
+
+  # `validate` runs against the new content first; the live file is only
+  # replaced if the command succeeds. %s is the candidate file.
+  - file: "{{ .root }}/backup.sh"
+    mode: 0755
+    validate: sh -n %s
+    content: |
+      #!/bin/sh
+      set -eu
+      tar -czf "/tmp/{{ .app_name }}-$(date +%F).tgz" "{{ .root }}"
+
+  # `sensitive` keeps the content out of diffs and reports. `get` reads an
+  # optional variable: pass the real value with  -e api_key=...
+  - file: "{{ .root }}/secrets.env"
+    mode: 0600
+    sensitive: true
+    content: |
+      API_KEY={{ get "api_key" "not-set" }}
+
+  # A symlink.
+  - file: "{{ .root }}/current.ini"
+    ensure: link
+    target: "{{ .root }}/app.ini"
+
+  # Something that must not exist.
+  - file: "{{ .root }}/app.ini.bak"
+    ensure: absent

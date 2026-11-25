@@ -1,0 +1,10 @@
+; {{ .app_name }} - rendered for {{ .host.name }}
+[server]
+listen  = {{ .listen }}
+workers = {{ .settings.workers }}
+{{- if gt .facts.cpu.count 4 }}
+threads = {{ .facts.cpu.count }}
+{{- end }}
+
+[logging]
+level = {{ .settings.log_level | upper }}

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Managed by fleetreeve.
+set -eu
+out="{{ .backup_dir }}/$(date +%F).sql.gz"
+pg_dumpall | gzip > "$out.tmp"
+mv "$out.tmp" "$out"
+find "{{ .backup_dir }}" -name '*.sql.gz' -mtime +14 -delete

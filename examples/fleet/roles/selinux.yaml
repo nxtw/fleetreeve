@@ -1,0 +1,23 @@
+# SELinux adjustments, driven by data: the inventory lists what each group
+# needs in `selinux_booleans` and `selinux_http_ports`.
+#
+# fleetreeve writes files through a temporary file in the target directory, so
+# new files get that directory's SELinux type - no restorecon is needed for
+# anything under /etc, /usr/local/bin or an existing web root.
+resources:
+  - package: policycoreutils-python-utils        # provides semanage
+
+  - exec: "selinux boolean {{ .item }}"
+    each: "{{ .selinux_booleans }}"
+    command: setsebool -P {{ .item }} on
+    unless: getsebool {{ .item }} | grep -q 'on$'
+
+  # Let web servers bind a non-standard port. -a adds the label; -m is
+  # for ports that already carry another label (9090, for instance).
+  - exec: "selinux http port {{ .item }}"
+    each: "{{ .selinux_http_ports }}"
+    command: >
+      semanage port -a -t http_port_t -p tcp {{ .item }} ||
+      semanage port -m -t http_port_t -p tcp {{ .item }}
+    unless: semanage port -l | grep '^http_port_t ' | grep -qw {{ .item }}
+    require: package[policycoreutils-python-utils]

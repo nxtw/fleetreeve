@@ -1,0 +1,6 @@
+# A test VM that carries every role and also runs the fleetreeve server and
+# console (see server-host.yaml).
+timezone: Europe/Amsterdam
+ssh_allow_groups: [admins, wheel]
+pg_max_connections: 50
+open_ports: [8140, 8141]            # added to the roles' ports: the fleetreeve server and console

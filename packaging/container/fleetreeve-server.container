@@ -1,0 +1,36 @@
+# fleetreeve server as a podman container managed by systemd (a "quadlet"),
+# for CentOS/RHEL 9 and other hosts with podman 4.4 or later.
+#
+#   podman build -t fleetreeve-server:0.1.0 .                  # in the repository
+#   cp packaging/container/fleetreeve-server.container /etc/containers/systemd/
+#   systemctl daemon-reload && systemctl start fleetreeve-server
+#   journalctl -u fleetreeve-server -f
+#   podman exec systemd-fleetreeve-server fleetreeve token \
+#       -secret-file /var/lib/fleetreeve-server/secret -ttl 24h -server https://fleetreeve.example.com:8140
+#
+# Expects /srv/fleetreeve (site.yaml, inventory.yaml) and /etc/fleetreeve/tls
+# (server.crt, server.key) on the host. The server runs as uid 65532 in the
+# container: `chown 65532 /etc/fleetreeve/tls/server.key`. The :Z suffix gives
+# the directories an SELinux label the container may read; drop it if the
+# same directory is used by something else on the host.
+[Unit]
+Description=fleetreeve pull-mode server (container)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/fleetreeve-server:0.1.0
+PublishPort=8140:8140
+Volume=/srv/fleetreeve:/srv/fleetreeve:ro,Z
+Volume=/etc/fleetreeve/tls:/etc/fleetreeve/tls:ro,z
+Volume=fleetreeve-server-data:/var/lib/fleetreeve-server
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+{{ .facts.fqdn }} - {{ .facts.os.pretty }}, {{ .facts.cpu.count }} CPUs, {{ .facts.memory.total_mb }} MB
+Roles: {{ .host.groups | join ", " | default "none" }}
+Managed by fleetreeve. Local changes are reverted; contact {{ .admin_email }}.

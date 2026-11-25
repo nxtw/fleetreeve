@@ -1,0 +1,42 @@
+# Changelog
+
+What changed for users, newest first. Versions follow
+[semantic versioning](https://semver.org); while the major version is 0, a
+minor version may change behaviour, and this file says where.
+
+## Unreleased
+
+## 0.1.0
+
+The first public release.
+
+- **Resources and catalogs.** Manifests in YAML: `file`, `package`,
+  `service`, `user`, `group`, `exec` and `line`; a dependency graph
+  with `require`, `before`, `notify` and `subscribe`; variables, templates,
+  conditions and loops; a catalog compiled and validated per host before
+  anything is touched.
+- **Agentless runs over SSH.** `plan` with real diffs and drift detection,
+  `apply`, `validate`, `graph`, `lookup`, `facts`, ad-hoc `run`; hosts in
+  parallel.
+- **State, pruning and rollback.** What left the manifest is removed from
+  the host; changes can be rolled back, per resource or per run.
+- **Data layer.** Values per host, group and operating system, kept out of
+  manifests.
+- **Modules.** Roles and resource types - composite or script - in
+  versioned, lockable modules.
+- **Purging.** Directories that hold only what is managed.
+- **Pull mode.** A server that compiles catalogs for hosts that fetch
+  their own; enrolment with join tokens; reports, history, queued runs and
+  rollbacks; self-updating clients.
+- **Web console.** Fleet overview, per-host detail, a scrollable log,
+  accounts with roles, apply, dry run and rollback from the browser.
+- **Server API**, described in OpenAPI. Host variables and the text of queued
+  shell commands are shown to the admin token only.
+- **`fleetreeve setup`.** A complete server from a few questions, as systemd
+  services or podman containers, with its own user and SSH key.
+- **HashiCorp Vault as certificate authority.** Host certificates with
+  automatic renewal; `fleetreeve vault` to prepare, check, deploy and unseal
+  Vault; certificates from Vault for the web console and Vault's own
+  interface.
+- **Packages and images.** RPM and `.deb` packages, container images for
+  the server and the console, static binaries for Linux and macOS.

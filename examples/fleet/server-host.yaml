@@ -1,0 +1,19 @@
+# single-host.yaml for a machine that also runs the fleetreeve server and
+# console: every fleet role on that one machine. Its own settings,
+# including the two extra firewall ports, are in data/hosts/fleetreeve.yaml.
+#
+#   fleetreeve plan  -i server-host.yaml site.yaml
+#   fleetreeve apply -i server-host.yaml site.yaml
+groups:
+  web: {hosts: [fleetreeve]}
+  lb:  {hosts: [fleetreeve]}
+  db:  {hosts: [fleetreeve]}
+
+hosts:
+  fleetreeve:
+    # The address is also what the load balancer uses as backend address.
+    # An IP, not the host name: on the machine itself the name may resolve
+    # to ::1 (/etc/hosts), where nginx - listening on IPv4 - does not answer.
+    address: 192.0.2.20
+    user: deploy
+    become: true

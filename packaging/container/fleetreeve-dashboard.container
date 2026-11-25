@@ -1,0 +1,47 @@
+# fleetreeve web console as a podman container managed by systemd (a "quadlet").
+#
+#   podman build -f Containerfile.dashboard -t fleetreeve-dashboard:0.1.0 .
+#   install -m 600 /dev/null /etc/fleetreeve/dashboard.env     # then fill it in, see below
+#   cp packaging/container/fleetreeve-dashboard.container /etc/containers/systemd/
+#   systemctl daemon-reload && systemctl start fleetreeve-dashboard
+#
+# /etc/fleetreeve/dashboard.env (root-only) holds the settings and secrets:
+#   FLEETREEVE_SERVER=https://fleetreeve.example.com:8140
+#   FLEETREEVE_API_TOKEN=<output of: fleetreeve token -api read>
+#   FLEETREEVE_CA=/etc/fleetreeve/tls/server.crt           # only for a private CA
+#   FLEETREEVE_DASHBOARD_USERS=/etc/fleetreeve/dashboard/users.yaml
+#   FLEETREEVE_OPERATOR_TOKEN=<fleetreeve token -api operator>   # optional: run now and rollback from the console
+#   FLEETREEVE_EXEC_TOKEN=<fleetreeve token -api exec>           # optional: admins may run shell commands (root on hosts!)
+#
+# Accounts live in /etc/fleetreeve/dashboard, owned by the user the console
+# runs as. Create the first admin on the host; the rest can then be done
+# in the console (which is why this directory is mounted read-write):
+#   install -d -o 65532 -g 65532 -m 700 /etc/fleetreeve/dashboard
+#   fleetreeve user add <name> -role admin -users /etc/fleetreeve/dashboard/users.yaml
+#
+# With only the READ token the console cannot change anything. The
+# operator token adds exactly one thing: asking hosts to roll a resource
+# back to a version they kept (and to release it) - for people signed in
+# with the operator role.
+[Unit]
+Description=fleetreeve web console (container)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/fleetreeve-dashboard:0.1.0
+PublishPort=8141:8141
+EnvironmentFile=/etc/fleetreeve/dashboard.env
+Volume=/etc/fleetreeve/tls:/etc/fleetreeve/tls:ro,z
+Volume=/etc/fleetreeve/dashboard:/etc/fleetreeve/dashboard:rw,z
+Exec=-tls-cert /etc/fleetreeve/tls/server.crt -tls-key /etc/fleetreeve/tls/server.key
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

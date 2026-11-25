@@ -1,0 +1,2 @@
+# Managed by fleetreeve.
+%admins ALL=(ALL) NOPASSWD: ALL

@@ -1,0 +1,8 @@
+http_port: 8080
+sites:
+  - {name: www, root: /usr/share/nginx/html/www}
+  - {name: docs, root: /usr/share/nginx/html/docs}
+# These follow http_port, so a host that overrides the port (web2) gets its
+# firewall rule and SELinux port label to match.
+open_ports: ["{{ .http_port }}"]
+selinux_http_ports: ["{{ .http_port }}"]

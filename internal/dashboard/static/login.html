@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in to the fleetreeve console</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c1730'/%3E%3Cpath d='M7 24h18M10 18.5h12M13 13h6M15 8h2' stroke='%23fff' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="signin">
+<main class="signin-card">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 25h22M9 19h14M12.5 13h7M15 7.5h2"/></svg>
+    <div>
+      <div class="brand-name">fleetreeve</div>
+      <div class="brand-sub">Configuration console</div>
+    </div>
+  </div>
+  <h1>Sign in</h1>
+  <form id="form" novalidate>
+    <label>Name
+      <input id="user" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>Password
+      <input id="password" name="password" type="password" autocomplete="current-password" required></label>
+    <p class="signin-error" id="error" role="alert" hidden></p>
+    <button class="button" id="submit" type="submit">Sign in</button>
+  </form>
+  <p class="muted">Accounts are created by whoever runs this console, with <code>fleetreeve user add</code>.</p>
+</main>
+<script src="login.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Where variables come from, and which source wins.
+#
+#   fleetreeve apply -i examples/features/variables/inventory.yaml examples/features/variables/site.yaml
+#   cat /tmp/fleetreeve-examples/variables/*/resolved.txt
+#
+#   ... -l web                    only the hosts in group web
+#   ... -e log_level=trace        -e beats everything
+#   fleetreeve validate -i ... site.yaml    compile for every host, touch nothing
+#
+# Precedence, lowest to highest:
+#   manifest vars < inventory vars < group vars < host vars < include vars < -e
+name: example-variables
+
+vars:                       # defaults: used when nothing else sets the variable
+  root: /tmp/fleetreeve-examples/variables
+  role: none
+  log_level: warn
+  replicas: 0
+  owner_team: platform
+
+resources:
+  - file: "{{ .root }}/{{ .host.name }}"
+    ensure: directory
+
+  - file: "{{ .root }}/{{ .host.name }}/resolved.txt"
+    content: |
+      host       = {{ .host.name }}
+      groups     = {{ .host.groups | join ", " | default "(none)" }}
+      role       = {{ .role }}
+      region     = {{ .region }}
+      log_level  = {{ .log_level }}
+      replicas   = {{ .replicas }}
+      owner_team = {{ .owner_team }}
+      web peers  = {{ .inventory.groups.web | join ", " }}
+
+  # Only on hosts in the web group.
+  - file: "{{ .root }}/{{ .host.name }}/web.marker"
+    when: contains "web" .host.groups
+    content: "{{ .replicas }} replicas\n"

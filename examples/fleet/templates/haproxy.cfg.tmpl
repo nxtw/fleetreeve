@@ -1,0 +1,22 @@
+# Managed by fleetreeve. Backends: inventory group "{{ .backend_group }}".
+global
+    daemon
+    maxconn 4096
+
+defaults
+    mode http
+    timeout connect 5s
+    timeout client  30s
+    timeout server  30s
+
+frontend http
+    bind *:{{ .frontend_port }}
+    default_backend {{ .backend_group }}
+
+backend {{ .backend_group }}
+    balance roundrobin
+    option httpchk GET /healthz
+{{- range index .inventory.groups .backend_group }}
+{{- $h := index $.inventory.hosts . }}
+    server {{ . }} {{ $h.address }}:{{ $h.vars.http_port }} check
+{{- end }}

@@ -1,0 +1,29 @@
+# Includes: a manifest is a reusable role, and include `vars` are its
+# parameters. Including the same manifest twice with different parameters
+# gives two independent instances.
+#
+#   fleetreeve apply examples/features/includes/site.yaml
+#   fleetreeve apply examples/features/includes/site.yaml -e with_metrics=true
+#
+# Runs without root.
+name: example-includes
+
+vars:
+  root: /tmp/fleetreeve-examples/includes
+  with_metrics: false
+  contact: ops@example.com      # visible in every included manifest
+
+include:
+  - common.yaml                 # short form: just a path, relative to this file
+
+  - manifest: vhost.yaml
+    vars: {site: blog, port: 8081}
+
+  - manifest: vhost.yaml
+    vars:
+      site: shop
+      port: 8082
+      aliases: [store, checkout]
+
+  - manifest: metrics.yaml      # included only when the condition holds
+    when: .with_metrics

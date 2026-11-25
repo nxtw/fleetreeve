@@ -1,0 +1,22 @@
+# A small production fleet on CentOS / RHEL-family hosts (Stream, Rocky,
+# Alma): two web servers behind a load balancer, one database.
+#
+# The inventory only says which hosts exist, how to reach them and which
+# groups they are in. What gets configured on them - ports, accounts,
+# settings - is data, and lives in data/.
+defaults:                 # how to reach every host unless it says otherwise
+  user: deploy
+  become: true            # node-side work runs through passwordless sudo
+  # identity: ~/.ssh/fleet_ed25519
+  # ssh_args: ["-J", "bastion.example.com"]     # e.g. through a jump host
+
+groups:
+  web: {hosts: [web1, web2]}
+  lb:  {hosts: [lb1]}
+  db:  {hosts: [db1]}
+
+hosts:
+  web1: {address: 10.0.1.11}
+  web2: {address: 10.0.1.12}
+  lb1:  {address: 10.0.1.5}
+  db1:  {address: 10.0.2.21, port: 2222}

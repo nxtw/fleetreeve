@@ -1,0 +1,20 @@
+# HAProxy in front of every host of `backend_group`. Backends are reached
+# at each host's inventory `address` and `http_port`, so the address must be
+# one the web server listens on, as seen from the load balancer. The list
+# is generated from the inventory: add a host to the group and the next
+# apply puts it in rotation.
+resources:
+  - package: haproxy
+
+  - file: /etc/haproxy/haproxy.cfg
+    template: ../templates/haproxy.cfg.tmpl
+    mode: 0644
+    validate: haproxy -c -f %s
+    require: package[haproxy]
+    notify: service[haproxy]
+
+  - service: haproxy
+    ensure: running
+    enabled: true
+    reload: true
+    require: file[/etc/haproxy/haproxy.cfg]

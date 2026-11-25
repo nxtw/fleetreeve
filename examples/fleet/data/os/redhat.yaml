@@ -1,0 +1,4 @@
+# What differs on the Red Hat family (CentOS, RHEL, Rocky, Alma).
+chrony_service: chronyd
+sshd_service: sshd
+nginx_user: nginx

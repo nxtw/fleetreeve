@@ -1,0 +1,31 @@
+# Baseline for every host: packages, time, motd, kernel settings.
+resources:
+  - package: "{{ .item }}"
+    each: "{{ .base_packages }}"
+
+  - package: chrony
+  - service: chrony
+    name: "{{ .chrony_service }}"       # differs per OS family: data/os/
+    ensure: running
+    enabled: true
+    require: package[chrony]
+
+  - file: /etc/localtime
+    ensure: link
+    target: "/usr/share/zoneinfo/{{ .timezone }}"
+
+  - file: /etc/motd
+    template: ../templates/motd.tmpl
+    mode: 0644
+
+  # One file per setting keeps each change small and independently removable:
+  # drop an entry from `sysctl` and fleetreeve deletes its file on the next apply.
+  - file: "/etc/sysctl.d/60-{{ .item.key }}.conf"
+    each: "{{ .sysctl }}"
+    content: "{{ .item.key }} = {{ .item.value }}\n"
+    mode: 0644
+    notify: exec[reload sysctl]
+
+  - exec: reload sysctl
+    command: sysctl --system
+    refreshonly: true

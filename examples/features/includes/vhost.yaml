@@ -1,0 +1,14 @@
+# Parameters: site (required), port, aliases.
+vars:
+  port: 80                        # default, overridden by the include
+  aliases: []
+
+resources:
+  - file: "{{ .root }}/sites/{{ .site }}.conf"
+    content: |
+      # contact: {{ .contact }}
+      server {
+        listen {{ .port }};
+        server_name {{ .site }}.example.com{{ range .aliases }} {{ . }}.example.com{{ end }};
+      }
+    notify: exec[reload proxy]

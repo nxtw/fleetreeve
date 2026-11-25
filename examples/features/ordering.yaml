@@ -1,0 +1,46 @@
+# Ordering and notification.
+#
+# fleetreeve orders resources by their relationships, not by position in the
+# file; where relationships leave a choice, the order written is kept.
+# This manifest is deliberately written "backwards" and still runs right.
+#
+#   fleetreeve graph examples/features/ordering.yaml | dot -Tsvg > graph.svg
+#   fleetreeve apply -v examples/features/ordering.yaml      # -v shows the order
+#
+# Runs without root.
+name: example-ordering
+
+vars:
+  root: /tmp/fleetreeve-examples/ordering
+  port: 8080
+
+resources:
+  # 4. Runs last: it requires the config, and is refreshed when it changes.
+  - exec: restart service
+    command: echo "restarted at $(date)" >> {{ .root }}/restarts.log
+    refreshonly: true
+    subscribe: file[{{ .root }}/etc/service.conf]     # same as a notify on the file
+
+  # 3. `require`: after the install step. No explicit dependency on the
+  #    etc directory is needed - a file always comes after its directory.
+  - file: "{{ .root }}/etc/service.conf"
+    content: "port = {{ .port }}\n"
+    require: exec[install service]
+
+  # 2. `before`: the mirror image of require, declared on the other side.
+  - exec: install service
+    command: touch {{ .root }}/installed
+    creates: "{{ .root }}/installed"
+    require: file[{{ .root }}]
+    before: file[{{ .root }}/etc]
+
+  - file: "{{ .root }}/etc"
+    ensure: directory
+
+  # 1. The root directory comes first because everything else needs it,
+  #    directly or indirectly - even though it is declared near the end.
+  - file: "{{ .root }}"
+    ensure: directory
+
+  - file: "{{ .root }}/README"
+    content: "Change `port` (-e port=9090) and the service restarts.\n"

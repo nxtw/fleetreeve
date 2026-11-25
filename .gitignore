@@ -1,0 +1,16 @@
+# Build output
+bin/
+dist/
+
+# Reports written by -report
+*.report.json
+
+# Local working files: a server's secrets and keys, personal settings
+server/
+/.fleetreeve.yaml
+*.secret
+*.token
+*.key
+.playwright-mcp/
+.DS_Store
+/.cairn.yaml

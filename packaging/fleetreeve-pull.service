@@ -1,0 +1,20 @@
+# Pull-mode client, shipped by the fleetreeve package.
+#
+# Configure and start it with `fleetreeve install -server <url> -join <token>`
+# on this machine, or `fleetreeve enroll` from a controller. Both write
+# /etc/fleetreeve/token and /etc/fleetreeve/pull.conf, then enable this unit.
+[Unit]
+Description=fleetreeve pull: fetch and enforce this node's configuration
+Documentation=file:///usr/share/doc/fleetreeve/README.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/fleetreeve/token
+
+[Service]
+EnvironmentFile=-/etc/fleetreeve/pull.conf
+ExecStart=/usr/bin/fleetreeve pull -log-format json
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

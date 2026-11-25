@@ -1,0 +1,7 @@
+resources:
+  - file: ["{{ .root }}", "{{ .root }}/sites"]
+    ensure: directory
+
+  - exec: reload proxy            # shared handler; the vhosts notify it
+    command: date >> {{ .root }}/reloads.log
+    refreshonly: true

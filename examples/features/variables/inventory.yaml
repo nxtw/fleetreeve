@@ -1,0 +1,27 @@
+# Three pretend hosts that all run on this machine (connection: local), so
+# the example needs no servers. Real inventories use address/user/become;
+# see examples/fleet/inventory.yaml.
+defaults:
+  connection: local
+
+vars:                       # every host
+  region: eu-west-1
+  log_level: info
+  replicas: 1
+
+groups:
+  web:
+    hosts: [alpha, beta]
+    vars:
+      role: web
+      replicas: 2           # beats the inventory-wide value
+  staging:
+    hosts: [beta]
+    vars:
+      log_level: debug      # later groups beat earlier ones
+
+hosts:
+  beta:
+    vars:
+      replicas: 5           # host vars beat group vars
+  gamma: {}                 # in no group: gets only the inventory-wide vars

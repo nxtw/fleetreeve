@@ -1,0 +1,56 @@
+# Entry point for the fleet: which roles go on which hosts.
+#
+#   fleetreeve validate -i inventory.yaml site.yaml       # offline check of every host
+#   fleetreeve plan     -i inventory.yaml site.yaml       # what would change, with diffs
+#   fleetreeve apply    -i inventory.yaml -l web site.yaml
+#   fleetreeve graph    -i inventory.yaml -l lb1 site.yaml | dot -Tsvg > lb1.svg
+#   fleetreeve state    -i inventory.yaml site.yaml       # what fleetreeve manages per host
+#
+# Written for the Red Hat family. base, admins, ssh, web and loadbalancer
+# also work on Debian/Ubuntu (they switch on .facts.os.family where the
+# two differ); postgres uses the RHEL layout only.
+name: fleet
+
+# Code and data are kept apart. The roles below say what to manage and
+# contain no values of their own; every value comes from data/, where each
+# host gets the files that apply to it, the most specific one winning:
+#
+#   data/hosts/<host>.yaml  >  data/groups/<group>.yaml  >  data/os/<family>.yaml  >  data/common.yaml
+#
+#   fleetreeve lookup -i inventory.yaml -l web2 -offline site.yaml            # all of web2's values, and their source
+#   fleetreeve lookup -i inventory.yaml -l web2 -offline site.yaml http_port  # why this one has that value
+# Two things come from modules (modules/): nginx with a virtual-host type,
+# and firewalld with a port type. `fleetreeve module list` shows what they offer.
+data:
+  dir: data
+  merge:
+    # Normally the most specific file replaces a key. These add up
+    # instead, so a host in several groups gets all of their ports.
+    open_ports: unique
+    selinux_http_ports: unique
+    selinux_booleans: unique
+    # And these merge key by key, so one setting can be overridden alone.
+    sysctl: deep
+    sshd_settings: deep
+
+include:
+  # Every host.
+  - roles/base.yaml
+  - roles/admins.yaml
+  - roles/ssh.yaml
+
+  # Red Hat specifics. Listed before the service roles: where the
+  # dependency graph leaves a choice fleetreeve keeps the written order, so port
+  # labels and firewall rules are in place before the services start.
+  - manifest: roles/selinux.yaml
+    when: and (eq .facts.os.family "redhat") (ne .facts.selinux "disabled")
+  - module: fleetreeve.firewalld               # from modules/: firewalld and a port type
+    when: eq .facts.os.family "redhat"
+
+  # By group.
+  - manifest: roles/web.yaml
+    when: contains "web" .host.groups
+  - manifest: roles/loadbalancer.yaml
+    when: contains "lb" .host.groups
+  - manifest: roles/postgres.yaml
+    when: contains "db" .host.groups

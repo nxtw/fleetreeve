@@ -1,0 +1,21 @@
+# The whole fleet example on ONE machine: the host is web server, load
+# balancer and database at once. Useful for trying the example on a
+# throwaway CentOS/RHEL VM before pointing it at real servers.
+#
+#   fleetreeve plan  -i single-host.yaml site.yaml
+#   fleetreeve apply -i single-host.yaml site.yaml
+#   curl http://<address>/healthz          # through HAProxy to nginx
+#
+# What it does to the machine: installs nginx, haproxy, postgresql-server
+# and firewalld; creates the admin accounts; adds an sshd drop-in.
+# The host's own settings are in data/hosts/vm1.yaml.
+groups:
+  web: {hosts: [vm1]}
+  lb:  {hosts: [vm1]}
+  db:  {hosts: [vm1]}
+
+hosts:
+  vm1:
+    address: 192.0.2.10
+    user: deploy
+    become: true

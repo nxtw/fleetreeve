@@ -1,0 +1,57 @@
+# The `exec` type: commands, each with a guard that makes it idempotent.
+# An exec without a guard runs on every apply - that is almost never wanted.
+#
+#   fleetreeve apply examples/features/exec.yaml      # everything runs
+#   fleetreeve apply examples/features/exec.yaml      # "in sync"
+#
+# Runs without root.
+name: example-exec
+
+vars:
+  root: /tmp/fleetreeve-examples/exec
+  schema_version: 3
+
+resources:
+  - file: "{{ .root }}"
+    ensure: directory
+
+  # creates: skip when the path exists.
+  - exec: unpack release
+    command: mkdir -p app && echo "release 1.4.2" > app/VERSION
+    cwd: "{{ .root }}"
+    creates: "{{ .root }}/app/VERSION"
+
+  # unless: skip when the check succeeds. The check also runs during
+  # `plan`, so it must not change anything.
+  - exec: migrate schema
+    command: echo "{{ .schema_version }}" > schema_version
+    unless: test "$(cat schema_version 2>/dev/null)" = "{{ .schema_version }}"
+    cwd: "{{ .root }}"
+    require: exec[unpack release]
+
+  # onlyif: run only when the check succeeds.
+  - exec: rotate large log
+    command: mv app.log app.log.1
+    onlyif: test "$(wc -c < app.log 2>/dev/null || echo 0)" -gt 1048576
+    cwd: "{{ .root }}"
+
+  # env and timeout.
+  - exec: build index
+    command: echo "built by $BUILD_USER with $JOBS jobs" > index.txt
+    cwd: "{{ .root }}"
+    env:
+      BUILD_USER: fleetreeve
+      JOBS: "{{ .facts.cpu.count }}"
+    timeout: 60
+    creates: "{{ .root }}/index.txt"
+
+  # refreshonly: never runs on its own, only when a resource that
+  # notifies it changes. This is how "handlers" are written.
+  - file: "{{ .root }}/app.conf"
+    content: "schema = {{ .schema_version }}\n"
+    notify: exec[reload app]
+
+  - exec: reload app
+    command: date >> reloads.log
+    cwd: "{{ .root }}"
+    refreshonly: true

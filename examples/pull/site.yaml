@@ -1,0 +1,21 @@
+# The manifest `fleetreeve serve` compiles for each node that checks in.
+name: pull-demo
+
+vars:
+  workers: 2          # default for hosts whose group does not set it
+
+resources:
+  - file: "{{ .root }}/{{ .host.name }}"
+    ensure: directory
+
+  - file: "{{ .root }}/{{ .host.name }}/app.conf"
+    content: |
+      # {{ .motd }}
+      node    = {{ .host.name }}
+      workers = {{ .workers }}
+      kernel  = {{ .facts.kernel.name }} {{ .facts.kernel.release }}
+    notify: exec[reload app]
+
+  - exec: reload app
+    command: date >> {{ .root }}/{{ .host.name }}/reloads.log
+    refreshonly: true

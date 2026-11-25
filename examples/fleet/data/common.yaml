@@ -1,0 +1,44 @@
+# Data for every host. More specific files (os/, groups/, hosts/) override
+# single keys of it; see site.yaml for the keys that are merged instead.
+domain: example.com
+admin_email: ops@example.com
+timezone: Europe/Amsterdam
+
+admins:
+  - name: alice
+    uid: 2001
+    key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAliceExampleKeyReplaceMe alice@example.com
+  - name: bob
+    uid: 2002
+    key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBobExampleKeyReplaceMe000 bob@example.com
+
+base_packages: [git, rsync, tar, bind-utils]
+
+sysctl:
+  net.core.somaxconn: 1024
+  vm.swappiness: 10
+
+sshd_settings:
+  PasswordAuthentication: "no"
+  PermitRootLogin: "no"
+  X11Forwarding: "no"
+  MaxAuthTries: 3
+# Who may log in over SSH. It MUST include a group of the account fleetreeve
+# itself connects with (`user:` in the inventory), or the next run - and
+# you - are locked out.
+ssh_allow_groups: [admins, deploy]
+
+# Firewall and SELinux: groups and hosts add to these lists.
+open_ports: []
+selinux_booleans: []
+selinux_http_ports: []
+
+# Defaults for the service roles.
+http_port: 80
+sites: []
+backend_group: web
+frontend_port: 80
+pg_data: /var/lib/pgsql/data
+pg_max_connections: 100
+pg_shared_buffers_mb: "{{ div .facts.memory.total_mb 4 }}"    # a quarter of the machine's memory
+backup_dir: /var/backups/postgres

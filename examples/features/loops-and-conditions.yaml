@@ -1,0 +1,82 @@
+# `each`, `when`, list titles, and the template functions.
+#
+#   fleetreeve apply examples/features/loops-and-conditions.yaml
+#   fleetreeve apply examples/features/loops-and-conditions.yaml -e env=dev
+#
+# Runs without root.
+name: example-loops
+
+vars:
+  root: /tmp/fleetreeve-examples/loops
+  env: production
+  sites: [blog, shop, docs]
+  users:
+    - {name: alice, shell: /bin/zsh, admin: true}
+    - {name: bob, shell: /bin/bash, admin: false}
+  limits:                      # a map: each item has .key and .value
+    nofile: 65536
+    nproc: 4096
+  # Variables can be built from other variables and from facts.
+  domain: "{{ .env }}.example.com"
+
+resources:
+  # A list title declares one resource per entry, with shared attributes.
+  - file: ["{{ .root }}", "{{ .root }}/sites", "{{ .root }}/users"]
+    ensure: directory
+
+  # each over a list: .item is the element.
+  - file: "{{ .root }}/sites/{{ .item }}.conf"
+    each: "{{ .sites }}"
+    content: "server_name {{ .item }}.{{ .domain }};\n"
+
+  # each over a list of maps.
+  - file: "{{ .root }}/users/{{ .item.name }}"
+    each: "{{ .users }}"
+    content: |
+      shell = {{ .item.shell }}
+      role  = {{ if .item.admin }}admin{{ else }}user{{ end }}
+
+  # each combined with when: the condition sees .item.
+  - file: "{{ .root }}/users/{{ .item.name }}.sudo"
+    each: "{{ .users }}"
+    when: .item.admin
+    content: "{{ .item.name }} ALL=(ALL) NOPASSWD: ALL\n"
+
+  # each over a map.
+  - line: "limit {{ .item.key }}"
+    each: "{{ .limits }}"
+    path: "{{ .root }}/limits.conf"
+    create: true
+    match: '^\* soft {{ .item.key }}\b'
+    line: "* soft {{ .item.key }} {{ .item.value }}"
+    require: file[{{ .root }}]
+
+  # when on facts and variables. A bare expression; `and`, `or`, `not`,
+  # `eq`, `ne`, `lt`, `gt` are available.
+  - file: "{{ .root }}/debug.flag"
+    when: ne .env "production"
+    content: "debug on\n"
+
+  - file: "{{ .root }}/platform"
+    when: or (eq .facts.os.family "darwin") (eq .facts.kernel.name "linux")
+    content: |
+      family  = {{ .facts.os.family }}
+      init    = {{ .facts.init }}
+      pkg     = {{ .facts.package_manager | default "none" }}
+      big box = {{ and (ge .facts.cpu.count 8) (ge .facts.memory.total_mb 16000) }}
+
+  # Template functions in one place.
+  - file: "{{ .root }}/functions.txt"
+    content: |
+      join      : {{ .sites | join ", " }}
+      upper     : {{ .env | upper }}
+      contains  : {{ contains "shop" .sites }}
+      default   : {{ get "motd" "" | default "(no motd set)" }}
+      get       : {{ get "region" "eu-west-1" }}
+      defined   : {{ defined "region" }}
+      replace   : {{ .domain | replace "." "-" }}
+      quote     : {{ quote .domain }}
+      toJson    : {{ toJson .limits }}
+      b64enc    : {{ b64enc "user:pass" }}
+      indent    :
+      {{ "first\nsecond" | indent 4 }}

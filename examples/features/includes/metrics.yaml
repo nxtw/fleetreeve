@@ -1,0 +1,3 @@
+resources:
+  - file: "{{ .root }}/metrics.conf"
+    content: "scrape = {{ .host.name }}:9100\n"

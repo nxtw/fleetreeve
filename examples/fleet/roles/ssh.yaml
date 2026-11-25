@@ -1,0 +1,29 @@
+# Harden sshd with a drop-in file.
+#
+# sshd uses the FIRST value it reads for each setting, and current
+# distributions (RHEL/CentOS 9, Debian 12, Ubuntu 22.04 and later) include
+# /etc/ssh/sshd_config.d/*.conf at the top of sshd_config. A file that sorts
+# first therefore wins over both the vendor drop-ins and the main file -
+# editing lines in sshd_config itself would lose to them (on CentOS 9,
+# 50-redhat.conf turns X11Forwarding back on).
+#
+# Older releases (RHEL/CentOS 7 and 8) have no such include: there, set
+# these in /etc/ssh/sshd_config with `line` resources instead.
+resources:
+  - file: /etc/ssh/sshd_config.d/00-fleetreeve.conf
+    mode: 0600
+    # Checked before it goes live: a file sshd cannot parse never lands,
+    # so sshd is never reloaded into a broken configuration.
+    validate: sshd -t -f %s
+    content: |
+      # Managed by fleetreeve. Sorts before the distribution's drop-ins on purpose.
+      {{ range $name, $value := .sshd_settings }}{{ $name }} {{ $value }}
+      {{ end }}AllowGroups {{ .ssh_allow_groups | join " " }}
+    require: group[admins]
+    notify: service[sshd]
+
+  - service: sshd
+    name: "{{ .sshd_service }}"         # differs per OS family: data/os/
+    ensure: running
+    enabled: true
+    reload: true              # a notification reloads instead of restarting

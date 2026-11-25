@@ -1,0 +1,64 @@
+# The `line` type: change single lines in a file you do not own as a whole
+# (a distribution's default config, a file another tool also writes to).
+#
+#   fleetreeve apply examples/features/lines.yaml
+#   cat /tmp/fleetreeve-examples/lines/sshd_config
+#
+# Runs without root.
+name: example-lines
+
+vars:
+  root: /tmp/fleetreeve-examples/lines
+
+resources:
+  - file: "{{ .root }}"
+    ensure: directory
+
+  # Stand-in for a config file shipped by a package. `creates` makes this
+  # run once only, so fleetreeve never overwrites the file afterwards.
+  - exec: seed a vendor config
+    command: |
+      printf '%s\n' '# vendor defaults' 'Port 22' '#PasswordAuthentication yes' \
+        'PermitRootLogin yes' 'X11Forwarding yes' 'Banner /etc/issue' > {{ .root }}/sshd_config
+    creates: "{{ .root }}/sshd_config"
+    require: file[{{ .root }}]
+
+  # Replace the line matching the regex; append if nothing matches.
+  - line: no password logins
+    path: "{{ .root }}/sshd_config"
+    match: '^#?\s*PasswordAuthentication\b'
+    line: PasswordAuthentication no
+    require: exec[seed a vendor config]
+
+  - line: no root logins
+    path: "{{ .root }}/sshd_config"
+    match: '^#?\s*PermitRootLogin\b'
+    line: PermitRootLogin no
+    require: exec[seed a vendor config]
+
+  # No match given: the exact line is added if it is not there yet.
+  - line: allow only the admin group
+    path: "{{ .root }}/sshd_config"
+    line: AllowGroups admins
+    require: exec[seed a vendor config]
+
+  # Remove an exact line...
+  - line: no x11
+    path: "{{ .root }}/sshd_config"
+    line: X11Forwarding yes
+    ensure: absent
+    require: exec[seed a vendor config]
+
+  # ...or every line matching a pattern.
+  - line: no banner
+    path: "{{ .root }}/sshd_config"
+    match: '^Banner\b'
+    ensure: absent
+    require: exec[seed a vendor config]
+
+  # `create` makes the file if it does not exist.
+  - line: local override
+    path: "{{ .root }}/local.conf"
+    create: true
+    line: "include_dir = conf.d"
+    require: file[{{ .root }}]

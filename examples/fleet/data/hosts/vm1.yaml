@@ -1,0 +1,4 @@
+# A test VM that carries every role (see single-host.yaml).
+timezone: Europe/Amsterdam
+ssh_allow_groups: [admins, wheel]   # its login is in wheel
+pg_max_connections: 50

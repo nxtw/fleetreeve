@@ -1,0 +1,4 @@
+# What differs on Debian and Ubuntu.
+chrony_service: chrony
+sshd_service: ssh
+nginx_user: www-data

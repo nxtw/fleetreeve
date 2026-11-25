@@ -1,0 +1,48 @@
+# A manifest you can run on your own machine without root:
+#   fleetreeve plan  examples/demo.yaml
+#   fleetreeve apply examples/demo.yaml
+#   fleetreeve apply examples/demo.yaml -e greeting=hi     # change -> handler runs
+#   fleetreeve apply examples/demo.yaml -e 'workers=[]'    # dropped files are removed
+#   fleetreeve state examples/demo.yaml                    # what fleetreeve tracks here
+vars:
+  root: /tmp/fleetreeve-demo
+  greeting: hello
+  workers: [alpha, beta]
+
+resources:
+  - file: "{{ .root }}"
+    ensure: directory
+    mode: 0750
+
+  - file: "{{ .root }}/app.conf"
+    content: |
+      greeting = {{ .greeting }}
+      host     = {{ .facts.hostname }}
+      cpus     = {{ .facts.cpu.count }}
+    mode: 0640
+    notify: exec[reload app]
+
+  - file: "{{ .root }}/worker-{{ .item }}.conf"
+    each: "{{ .workers }}"
+    content: "name = {{ .item }}\n"
+
+  - line: tune setting          # edits one line of a file fleetreeve does not own
+    path: "{{ .root }}/local.ini"
+    create: true
+    line: "debug = false"
+    match: '^debug\s*='
+    require: file[{{ .root }}]
+
+  - exec: reload app
+    command: "date > {{ .root }}/reloaded"
+    refreshonly: true
+
+  - exec: initialise data
+    command: "mkdir -p {{ .root }}/data && touch {{ .root }}/data/.initialised"
+    creates: "{{ .root }}/data/.initialised"
+    require: file[{{ .root }}]
+
+  - file: "{{ .root }}/current"
+    ensure: link
+    target: "{{ .root }}/data"
+    require: exec[initialise data]
