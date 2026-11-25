@@ -6,6 +6,13 @@ minor version may change behaviour, and this file says where.
 
 ## Unreleased
 
+- **The example module `fleetreeve.nginx` creates web roots owned by root**
+  instead of by the nginx user (module version 0.2.0), so that a
+  compromised nginx process cannot rewrite the content it serves. Projects
+  that copied the module from `examples/` get the change when they copy it
+  again; the owner of existing web roots then changes to root on the next
+  run.
+
 ## 0.1.1
 
 - **Fixed: a crash when catalogs for several hosts were compiled at the
