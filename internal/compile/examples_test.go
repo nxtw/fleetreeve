@@ -146,6 +146,19 @@ func TestFleetOnCentOS(t *testing.T) {
 	if has(web2, "fleetreeve.nginx.vhost[www]") || !find(t, web2, "file[/etc/nginx/conf.d/www.conf]").Rollback {
 		t.Error("fleetreeve.nginx.vhost was not expanded into its resources")
 	}
+	// A web root belongs to root: what serves a site must not be able to
+	// rewrite it.
+	roots := 0
+	for _, r := range web2.Resources {
+		if r.Type == "file" && r.Str("ensure") == "directory" && strings.HasPrefix(r.Title, "/usr/share/nginx/html/") {
+			if roots++; r.Str("owner") != "root" {
+				t.Errorf("%s is owned by %q, want root", r.ID(), r.Str("owner"))
+			}
+		}
+	}
+	if roots == 0 {
+		t.Error("no web root found in the catalog of web2")
+	}
 	if got := find(t, web2, "file[/etc/nginx/conf.d/www.conf]").Str("content"); !strings.Contains(got, "listen 9090;") || !strings.Contains(got, "server_name www.example.com;") {
 		t.Errorf("vhost:\n%s", got)
 	}
