@@ -53,8 +53,8 @@ form: the same user, files, directories, service names (`systemctl
 status fleetreeve-server fleetreeve-dashboard`) and commands, because the
 containers run as the server's own user of this machine and see the same
 directories. The choice is made once: running setup again keeps the form
-that is there. After upgrading fleetreeve, run setup again to make the image
-anew from the new version.
+that is there. [Upgrading](#upgrading) makes the image anew from the new
+version.
 
 On a machine that already runs the server in a [container](containers.md)
 you set up yourself (the quadlet in `packaging/container`) it
@@ -118,3 +118,68 @@ Things to know:
 - `fleetreeve identity show` prints where the key is. Back the key up with the
   server's secret; a new key means bootstrapping every host again.
 - The user is called `fleetreeve` unless `run-as` names another.
+
+## Upgrading
+
+```sh
+sudo fleetreeve upgrade -plan      # what would happen
+sudo fleetreeve upgrade            # do it, after a question (-yes: without)
+```
+
+This brings the machine to the newest release:
+
+1. It finds the release on GitHub (`github.com/nxtw/fleetreeve`), fetches
+   the files this machine needs and checks them against the release's
+   `SHA256SUMS`. Nothing is installed when a file does not match.
+2. It installs the release the way fleetreeve was installed here: the RPM
+   or Debian package (with `fleetreeve-server` if you have it), or the
+   binary itself when it came from a release archive.
+3. On a server it has the server and the console run the new version. In
+   containers that `setup` made, the image is made anew and the
+   containers restart on it; ordinary services are restarted. It waits
+   until the server answers as the new version. Your configuration,
+   secret, certificates and accounts are not touched.
+4. Where the server keeps packages for new hosts
+   (`/usr/share/fleetreeve/rpm`), they are replaced by the new ones.
+
+It works on any machine with fleetreeve, not only a server: a
+workstation you run `plan` and `apply` from, or a host.
+
+| | |
+| --- | --- |
+| `-version 0.1.2` | that release instead of the newest. Also the way back to an older one, which is otherwise refused |
+| `-from <dir>` | take the release from a directory instead of from GitHub: for servers without access to the internet. Put the files of a release there, with its `SHA256SUMS` (without that file they are used as they are, and the command says so) |
+| `-with-hosts` | upgrade the hosts as well, see below |
+| `-plan` | say what would be done and change nothing; needs no sudo |
+| `-yes` | do not ask |
+
+**The hosts.** Hosts that run the build the server handed them keep
+themselves current: they fetch the new one at their next run. Hosts that
+got fleetreeve as a package (`enroll -rpm`, or a package you installed) keep
+their version until the package is upgraded:
+
+```sh
+sudo fleetreeve upgrade -with-hosts
+```
+
+After the server it runs `fleetreeve enroll` with the new package for
+every host in the inventory, which upgrades the package and restarts the
+host's service. That is for RPM-based hosts; on Debian and Ubuntu hosts
+upgrade the package with your own means (dpkg or apt), and `enroll`
+reports them as failed here. Running the command again when everything
+is current installs nothing; it makes the image again and restarts the
+services.
+
+Things to know:
+
+- The checksums show that a file is what the release published; both come
+  from the same place. Packages are not signed.
+- A server whose container you set up yourself (not through `setup`) is
+  left alone: its image is yours to update.
+- If a step after the installation fails, the new version is installed
+  and the command says what did not succeed; running it again repeats
+  those steps. `-version` with the previous release goes back.
+- Vault is not upgraded: its container runs the image you chose.
+- The first version with this command is the one after 0.1.1; to get
+  there from 0.1.0 or 0.1.1, install the new package by hand and run
+  `sudo fleetreeve setup -yes` once.
