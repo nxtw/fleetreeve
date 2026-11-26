@@ -296,8 +296,13 @@ func parse(cmd string, args []string) (*options, error) {
 	fs.DurationVar(&o.ttl, "ttl", 0, "")
 	// Defaults from the settings file come first; flags override them.
 	var err error
-	if o.config, err = applyConfig(fs, cmd); err != nil {
-		return nil, err
+	// Not for upgrade: it installs software as root, and the settings
+	// file is whatever .fleetreeve.yaml the current directory or one above
+	// it holds. Where the release comes from is said on the command line.
+	if cmd != "upgrade" {
+		if o.config, err = applyConfig(fs, cmd); err != nil {
+			return nil, err
+		}
 	}
 	// Everything after "--" is positional; before it, flags and positional
 	// arguments may be mixed freely.
