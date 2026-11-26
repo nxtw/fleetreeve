@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -151,5 +152,20 @@ func TestEnrollable(t *testing.T) {
 	}
 	if err := enrollable(map[string]any{"init": "systemd", "user": map[string]any{"uid": float64(1000)}}); err == nil || !strings.Contains(err.Error(), "become") {
 		t.Errorf("non-root accepted: %v", err)
+	}
+}
+
+func TestUnenrollIsEnrollRemove(t *testing.T) {
+	got := unalias([]string{"unenroll", "web1", "-plan"})
+	if want := []string{"enroll", "-remove", "web1", "-plan"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("unenroll web1 -plan became %v, want %v", got, want)
+	}
+	if got := unalias([]string{"enroll", "web1"}); !reflect.DeepEqual(got, []string{"enroll", "web1"}) {
+		t.Errorf("enroll was rewritten to %v", got)
+	}
+	// It is the enroll command from there on: the same settings apply.
+	o, err := parse("enroll", got[1:])
+	if err != nil || !o.remove || !o.plan || len(o.args) != 1 || o.args[0] != "web1" {
+		t.Errorf("parsed as %+v, %v", o, err)
 	}
 }

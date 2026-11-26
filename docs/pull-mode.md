@@ -46,9 +46,31 @@ platform), the node's token in `/etc/fleetreeve/token` (root-only), and a system
 service `fleetreeve-pull` that pulls every 30 minutes (`-every` to change, `-ca`
 to install a private CA), then enables and starts it. Enrolment is itself a
 fleetreeve run of a built-in catalog: it is idempotent, re-running it upgrades the
-binary or replaces the token and restarts the service, and
-`fleetreeve enroll -i inventory.yaml -l web1 -remove` stops the service and
-removes those files. It needs systemd and root on the node (`become: true`).
+binary or replaces the token and restarts the service. It needs systemd
+and root on the node (`become: true`).
+
+**Taking a host out again:**
+
+```sh
+fleetreeve unenroll web1                 # the same as: fleetreeve enroll web1 -remove
+fleetreeve unenroll web1 -plan           # show what would be removed
+```
+
+This stops and disables the service on the host, removes its token, the
+server's CA and the host's certificate, and withdraws the host from the
+server, which ends its access and revokes its certificate. What is left
+alone:
+
+- everything fleetreeve configured on the host. Nothing is undone; it is
+  only no longer enforced;
+- the host's state, so enrolling it again picks up where it was, and the
+  `fleetreeve` package where the host has it (a binary that `enroll`
+  itself put in `/usr/local/bin` is removed);
+- the `fleetreeve` user on the host and its key, which the server keeps
+  using for `plan`, `apply` and `run` over SSH;
+- the host's entry in your `inventory.yaml`. A host listed in the
+  inventory the server itself reads keeps its access until you remove it
+  there.
 
 **Let nodes install themselves** — for nodes the controller cannot reach,
 and for provisioning (kickstart, cloud-init, images). The server hands out
@@ -89,7 +111,7 @@ the inventory file, which is usually a read-only checkout:
 - Group variables still come from the server's inventory. If the host is in
   a group the server does not define, `enroll` says so: the host is then a
   member of an empty group there.
-- `fleetreeve enroll -remove` withdraws the registration, which revokes the
+- `fleetreeve unenroll` withdraws the registration, which revokes the
   node's access. `-no-register` skips registration altogether.
 - `fleetreeve status -hosts <dir>` counts registered hosts as expected nodes.
 
