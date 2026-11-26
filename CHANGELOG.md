@@ -6,6 +6,9 @@ minor version may change behaviour, and this file says where.
 
 ## Unreleased
 
+- **New: `fleetreeve unenroll <host>`** takes a host out of pull mode. It
+  is `fleetreeve enroll <host> -remove` under a name that can be found;
+  that form keeps working.
 - **Fixed: a host moved from one server to another could not reach its new
   server.** It kept the certificate of the old one, which the new server
   turned away before the host could ask for another ("remote error: tls:

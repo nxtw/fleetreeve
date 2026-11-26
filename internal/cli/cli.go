@@ -61,7 +61,9 @@ Pull mode (optional; nodes fetch their own catalog instead of being pushed to):
                                         On a node, as root: install fleetreeve and the pull service
   fleetreeve enroll [host...] -i <inv> -server <url> -secret-file <f> [options]
                                         Over SSH: install fleetreeve, the node's token and a
-                                        systemd service that pulls (-remove undoes it)
+                                        systemd service that pulls
+  fleetreeve unenroll [host...] [options]    Undo that: stop the service, remove the node's token and
+                                        certificate, withdraw it from the server (enroll -remove)
   fleetreeve pull   -server <url> -token-file <f> [options]
                                         On a node: fetch its catalog, apply, report
   fleetreeve status -reports <dir> [-i <inv>]    Last report of every node (on the server)
@@ -313,11 +315,22 @@ func parse(cmd string, args []string) (*options, error) {
 }
 
 // Main runs the command line and returns the process exit status.
+// unalias rewrites commands that are another command with an option:
+// `unenroll web1` is `enroll -remove web1`. Everything that applies to the
+// real command (its section in .fleetreeve.yaml, run-as) then applies.
+func unalias(args []string) []string {
+	if len(args) > 0 && args[0] == "unenroll" {
+		return append([]string{"enroll", "-remove"}, args[1:]...)
+	}
+	return args
+}
+
 func Main(args []string) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		fmt.Print(usage)
 		return 0
 	}
+	args = unalias(args)
 	cmd := args[0]
 	if cmd == "agent" {
 		return agent(args[1:])
@@ -394,7 +407,7 @@ func Main(args []string) int {
 	case "version":
 		fmt.Println("fleetreeve", Version)
 	default:
-		err = fmt.Errorf("unknown command %q%s", cmd, core.Suggest(cmd, []string{"plan", "apply", "validate", "graph", "lookup", "rollback", "facts", "state", "run", "types", "serve", "token", "enroll", "install", "pull", "status", "dashboard", "user", "module", "identity", "setup", "vault", "version"}))
+		err = fmt.Errorf("unknown command %q%s", cmd, core.Suggest(cmd, []string{"plan", "apply", "validate", "graph", "lookup", "rollback", "facts", "state", "run", "types", "serve", "token", "enroll", "unenroll", "install", "pull", "status", "dashboard", "user", "module", "identity", "setup", "vault", "version"}))
 	}
 	if err != nil {
 		notef(slog.LevelError, "%v", err)
