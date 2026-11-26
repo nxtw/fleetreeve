@@ -4,7 +4,7 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
-## Unreleased
+## 0.1.2
 
 - **New: `sudo fleetreeve upgrade`** brings a machine to the newest
   release in one step: it fetches the release from GitHub, verifies the
@@ -15,7 +15,8 @@ minor version may change behaviour, and this file says where.
   without access to the internet, `-plan` shows what would happen. See
   [Upgrading](docs/server-setup.md#upgrading). It takes its options from
   the command line only, never from `.fleetreeve.yaml`. Getting to this version
-  from 0.1.1 is still done by hand, once.
+  from 0.1.1 is still done by hand, once: install the package and run
+  `sudo fleetreeve setup -yes`.
 - **New: `fleetreeve unenroll <host>`** takes a host out of pull mode. It
   is `fleetreeve enroll <host> -remove` under a name that can be found;
   that form keeps working.
