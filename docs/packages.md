@@ -31,9 +31,19 @@ fleetreeve install -server https://fleetreeve.example.com:8140 -join join.1795â€
 
 fleetreeve notices it was installed from a package and then only writes
 `/etc/fleetreeve/token` and `/etc/fleetreeve/pull.conf` and enables the packaged
-`fleetreeve-pull` service; `fleetreeve enroll` from a controller does the same. A
-packaged client does not self-update - new versions arrive with
-`dnf upgrade`, which restarts the service.
+`fleetreeve-pull` service; `fleetreeve enroll` from a controller does the same.
+
+A packaged client follows its server: when the server has a newer client
+package, the host fetches it at its next run, checks it against the
+checksum the server gives, and installs it with `rpm -U` or `dpkg -i`,
+which restarts the service on the new version. The server offers the
+packages in `/usr/share/fleetreeve/packages` (`serve -packages` names
+another directory), and only those of its own version;
+[`fleetreeve upgrade`](server-setup.md#upgrading) puts them there. A host
+never goes back to an older version this way. To keep a host on the
+version it has, put `FLEETREEVE_AUTO_UPDATE=no` in its
+`/etc/fleetreeve/pull.conf`; new versions then arrive with `dnf upgrade`
+or apt, as for any package.
 
 **Over SSH**, `fleetreeve enroll -rpm` installs the package and enrols the node
 in one step, so nothing has to be done on the node by hand:

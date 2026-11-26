@@ -95,7 +95,13 @@ func serve(ctx context.Context, o *options) error {
 	} else if o.requireCert {
 		return fmt.Errorf("-require-cert needs a certificate authority: -vault-addr")
 	}
-	s := &pull.Server{CA: vault, Certs: o.certsDir, RequireCert: o.requireCert, History: o.historyDir, HistoryDays: o.historyDays, Manifest: manifest, Inventory: o.inventory, Extra: o.extra, Prune: !o.noPrune, Secret: secret, Reports: o.reports, Hosts: o.hostsDir, Actions: o.actionsDir, Version: Version, Log: opLog}
+	packages := o.packages
+	if packages == "" {
+		if st, err := os.Stat(hostPackages); err == nil && st.IsDir() {
+			packages = hostPackages
+		}
+	}
+	s := &pull.Server{Packages: packages, CA: vault, Certs: o.certsDir, RequireCert: o.requireCert, History: o.historyDir, HistoryDays: o.historyDays, Manifest: manifest, Inventory: o.inventory, Extra: o.extra, Prune: !o.noPrune, Secret: secret, Reports: o.reports, Hosts: o.hostsDir, Actions: o.actionsDir, Version: Version, Log: opLog}
 	ln, err := net.Listen("tcp", o.listen)
 	if err != nil {
 		return err
@@ -323,6 +329,10 @@ func pullCmd(ctx context.Context, o *options) (int, error) {
 			if err := selfUpdate(ctx, client); err != nil {
 				notef(slog.LevelWarn, "self-update: %v", err)
 			}
+		}
+		// A host with fleetreeve from a package follows its server too.
+		if err := packageUpdate(ctx, client); err != nil {
+			notef(slog.LevelWarn, "upgrading the package: %v", err)
 		}
 		rep, code, err := pullOnce(ctx, o, client, host, plan, int(poll.Seconds()), pre)
 		var answers []pull.ActionResult

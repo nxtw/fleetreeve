@@ -134,6 +134,9 @@ Pull mode options:
           -require-cert  a host's token gets it nothing but its first certificate
           -hosts <dir>   accept hosts registered by 'fleetreeve enroll', kept here
           -actions <dir> accept rollback requests for nodes (from the console), queued here
+          -packages <dir> client packages (rpm, deb) of this version, which hosts that have
+                         fleetreeve as a package upgrade themselves with (default:
+                         /usr/share/fleetreeve/packages, which 'fleetreeve upgrade' fills)
   enroll: -server <url>  -secret-file <file>  -ca <file>  -every <dur> (default 30m)
           -plan  -remove  -insecure  -skip-check  (plus -i, -l, -forks)
           -new-cert      the host was rebuilt or lost its key: have it get a new certificate
@@ -200,6 +203,7 @@ type options struct {
 	release                                      bool
 	config                                       string // settings file in use, if any
 	join                                         string
+	packages                                     string // serve: client packages offered to hosts
 	from                                         string // upgrade: a directory with a release
 	withHosts                                    bool   // upgrade: the hosts as well
 	ttl                                          time.Duration
@@ -290,6 +294,7 @@ func parse(cmd string, args []string) (*options, error) {
 	fs.StringVar(&o.factsFile, "facts", "", "")
 	fs.BoolVar(&o.release, "release", false, "")
 	fs.BoolVar(&o.selfUpdate, "self-update", false, "")
+	fs.StringVar(&o.packages, "packages", "", "")
 	fs.StringVar(&o.from, "from", "", "")
 	fs.BoolVar(&o.withHosts, "with-hosts", false, "")
 	fs.StringVar(&o.join, "join", "", "")

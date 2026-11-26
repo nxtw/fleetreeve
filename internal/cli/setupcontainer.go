@@ -472,6 +472,21 @@ func buildImage(ctx context.Context, bin string) (string, error) {
 			break
 		}
 	}
+	// The client packages of this version, which hosts that have fleetreeve
+	// as a package upgrade themselves with.
+	have := false
+	for _, pattern := range []string{"fleetreeve-" + Version + "-*.rpm", "fleetreeve_" + Version + "-*.deb"} {
+		pkgs, _ := filepath.Glob(filepath.Join(hostPackages, pattern))
+		for _, p := range pkgs {
+			if err := copyFile(p, filepath.Join(dir, "packages", filepath.Base(p))); err != nil {
+				return "", err
+			}
+			have = true
+		}
+	}
+	if have {
+		file += "COPY packages " + hostPackages + "\n"
+	}
 	file += "WORKDIR /srv/fleetreeve\nENTRYPOINT [\"/usr/bin/fleetreeve\"]\n"
 	if err := os.WriteFile(filepath.Join(dir, "Containerfile"), []byte(file), 0o644); err != nil {
 		return "", err

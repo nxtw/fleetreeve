@@ -4,6 +4,20 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
+## Unreleased
+
+- **Hosts that have fleetreeve as a package now follow their server's
+  version by themselves**, as hosts with the server's own build already
+  did. A server keeps the client packages of its version
+  (`/usr/share/fleetreeve/packages`, filled by `fleetreeve upgrade`) and
+  offers them; at its next run a host with an older package fetches the
+  new one, verifies its checksum and installs it, which restarts its
+  service on the new version. Hosts never go back to an older version
+  this way, and `FLEETREEVE_AUTO_UPDATE=no` in a host's
+  `/etc/fleetreeve/pull.conf` keeps that host where it is. Hosts on 0.1.2
+  or older need one last upgrade by hand or with
+  `sudo fleetreeve upgrade -with-hosts`.
+
 ## 0.1.2
 
 - **New: `sudo fleetreeve upgrade`** brings a machine to the newest

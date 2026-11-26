@@ -139,8 +139,10 @@ This brings the machine to the newest release:
    containers restart on it; ordinary services are restarted. It waits
    until the server answers as the new version. Your configuration,
    secret, certificates and accounts are not touched.
-4. Where the server keeps packages for new hosts
-   (`/usr/share/fleetreeve/rpm`), they are replaced by the new ones.
+4. It puts the release's client packages (rpm and deb) in
+   `/usr/share/fleetreeve/packages`, from where the server offers them to
+   its hosts. Where the server also keeps packages for `enroll -rpm`
+   (`/usr/share/fleetreeve/rpm`), those are replaced by the new ones.
 
 It works on any machine with fleetreeve, not only a server: a
 workstation you run `plan` and `apply` from, or a host.
@@ -153,22 +155,32 @@ workstation you run `plan` and `apply` from, or a host.
 | `-plan` | say what would be done and change nothing; needs no sudo |
 | `-yes` | do not ask |
 
-**The hosts.** Hosts that run the build the server handed them keep
-themselves current: they fetch the new one at their next run. Hosts that
-got fleetreeve as a package (`enroll -rpm`, or a package you installed) keep
-their version until the package is upgraded:
+**The hosts** follow by themselves: at its next run after the server was
+upgraded (within half an hour, unless you changed `-every`), each host
+sees that the server has a newer version and takes it. A host that runs
+the build the server handed it replaces that build; a host that has
+fleetreeve as a [package](packages.md) installs the server's newer
+package. Either way its service restarts on the new version and does its
+run.
 
-```sh
-sudo fleetreeve upgrade -with-hosts
-```
+Two kinds of host do not follow:
 
-After the server it runs `fleetreeve enroll` with the new package for
-every host in the inventory, which upgrades the package and restarts the
-host's service. That is for RPM-based hosts; on Debian and Ubuntu hosts
-upgrade the package with your own means (dpkg or apt), and `enroll`
-reports them as failed here. Running the command again when everything
-is current installs nothing; it makes the image again and restarts the
-services.
+- hosts whose package is older than 0.1.3, which do not know how yet.
+  Upgrade those once from the server:
+
+  ```sh
+  sudo fleetreeve upgrade -with-hosts
+  ```
+
+  After the server, this runs `fleetreeve enroll` with the new package
+  for every host in the inventory. It is for RPM-based hosts; on Debian
+  and Ubuntu hosts install the new package with dpkg or apt this once,
+  and `enroll` reports them as failed here.
+- hosts with `FLEETREEVE_AUTO_UPDATE=no` in `/etc/fleetreeve/pull.conf`,
+  which is how you keep a host on the version it has.
+
+Running `upgrade` again when everything is current installs nothing; it
+makes the image again and restarts the services.
 
 Things to know:
 

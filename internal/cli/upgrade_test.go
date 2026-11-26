@@ -155,6 +155,11 @@ func TestUpgradeFilesForThisMachine(t *testing.T) {
 	if _, err := filesFor(installation{Kind: "binary"}, rel, "linux", "riscv64"); err == nil {
 		t.Error("a platform the release does not have got files")
 	}
+	// A server keeps every client package, rpm and deb, for hosts to
+	// upgrade themselves with.
+	if got, want := clientPackages(rel), []string{"fleetreeve-0.3.0-1.aarch64.rpm", "fleetreeve-0.3.0-1.x86_64.rpm", "fleetreeve_0.3.0-1_amd64.deb", "fleetreeve_0.3.0-1_arm64.deb"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("client packages: %v, want %v", got, want)
+	}
 	// Hosts get the client package, of every architecture, never the server's.
 	got := hostRPMs(rel)
 	if want := []string{"fleetreeve-0.3.0-1.aarch64.rpm", "fleetreeve-0.3.0-1.x86_64.rpm"}; !sameSet(got, want) {

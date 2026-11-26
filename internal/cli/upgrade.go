@@ -33,10 +33,11 @@ import (
 
 // Where releases come from. Variables, so that tests can point elsewhere.
 var (
-	upgradeAPI       = "https://api.github.com/repos/nxtw/fleetreeve"
-	upgradeDownloads = "https://github.com/nxtw/fleetreeve/releases/download"
-	upgradeCache     = "/var/cache/fleetreeve/upgrade"
-	upgradeHostRPMs  = "/usr/share/fleetreeve/rpm" // packages `enroll` gives to hosts, where a server keeps them
+	upgradeAPI          = "https://api.github.com/repos/nxtw/fleetreeve"
+	upgradeDownloads    = "https://github.com/nxtw/fleetreeve/releases/download"
+	upgradeCache        = "/var/cache/fleetreeve/upgrade"
+	upgradeHostRPMs     = "/usr/share/fleetreeve/rpm" // packages `enroll` gives to hosts, where a server keeps them
+	upgradeHostPackages = hostPackages                // packages hosts upgrade themselves with
 )
 
 // release is one version of fleetreeve and a way to get its files.
@@ -244,14 +245,29 @@ func filesFor(in installation, r *release, goos, goarch string) ([]string, error
 	return files, nil
 }
 
-// hostRPMs are the client packages of a release, for every architecture.
+// hostRPMs are the client RPMs of a release, for every architecture.
 func hostRPMs(r *release) []string {
 	var files []string
-	for _, name := range r.Names {
-		if ok, _ := filepath.Match("fleetreeve-"+r.Version+"-*.rpm", name); ok {
+	for _, name := range clientPackages(r) {
+		if strings.HasSuffix(name, ".rpm") {
 			files = append(files, name)
 		}
 	}
+	return files
+}
+
+// clientPackages are the client packages of a release, rpm and deb, for
+// every architecture: what hosts upgrade themselves with.
+func clientPackages(r *release) []string {
+	var files []string
+	for _, name := range r.Names {
+		for _, pattern := range []string{"fleetreeve-" + r.Version + "-*.rpm", "fleetreeve_" + r.Version + "-*.deb"} {
+			if ok, _ := filepath.Match(pattern, name); ok {
+				files = append(files, name)
+			}
+		}
+	}
+	sort.Strings(files)
 	return files
 }
 
@@ -365,8 +381,10 @@ func upgrade(ctx context.Context, o *options) error {
 			return err
 		}
 	}
-	if server != "" && (keepsRPMs == nil || o.withHosts) {
-		forHosts = hostRPMs(rel)
+	// A server keeps the client packages of its version: hosts that have
+	// fleetreeve as a package upgrade themselves with them.
+	if server == "container" || server == "service" {
+		forHosts = clientPackages(rel)
 	}
 	verified := "verify the release's checksums"
 	if rel.Sums == nil {
@@ -385,8 +403,8 @@ func upgrade(ctx context.Context, o *options) error {
 	case "foreign":
 		fmt.Println("  - leave the server's container alone: it was not made by `fleetreeve setup`, so its image is yours to update")
 	}
-	if len(forHosts) > 0 && keepsRPMs == nil {
-		fmt.Printf("  - put the %s packages for hosts in %s\n", rel.Version, upgradeHostRPMs)
+	if len(forHosts) > 0 {
+		fmt.Printf("  - keep the %s packages for hosts in %s, which hosts upgrade themselves with\n", rel.Version, upgradeHostPackages)
 	}
 	if o.withHosts {
 		if server == "" {
@@ -470,31 +488,43 @@ func upgrade(ctx context.Context, o *options) error {
 		}
 		step("fleetreeve %s installed", rel.Version)
 	}
-	if len(forHosts) > 0 && keepsRPMs == nil {
-		// Only this release's packages stay: enroll takes what is there.
-		old, _ := filepath.Glob(filepath.Join(upgradeHostRPMs, "fleetreeve-[0-9]*.rpm"))
-		for _, name := range forHosts {
-			b, err := os.ReadFile(filepath.Join(dir, name))
-			if err != nil {
+	if len(forHosts) > 0 {
+		// Only this release's packages stay. The older directory of RPMs,
+		// which `enroll -rpm` may be pointed at, is kept up where it exists.
+		targets := map[string][]string{upgradeHostPackages: forHosts}
+		if keepsRPMs == nil {
+			targets[upgradeHostRPMs] = hostRPMs(rel)
+		}
+		for target, names := range targets {
+			if err := os.MkdirAll(target, 0o755); err != nil {
 				return err
 			}
-			if err := os.WriteFile(filepath.Join(upgradeHostRPMs, name), b, 0o644); err != nil {
-				return err
+			keep := map[string]bool{}
+			for _, name := range names {
+				b, err := os.ReadFile(filepath.Join(dir, name))
+				if err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(target, name), b, 0o644); err != nil {
+					return err
+				}
+				keep[name] = true
+			}
+			old, _ := filepath.Glob(filepath.Join(target, "fleetreeve[-_][0-9]*"))
+			for _, p := range old {
+				if !keep[filepath.Base(p)] {
+					os.Remove(p)
+				}
 			}
 		}
-		for _, p := range old {
-			if ok, _ := filepath.Match("fleetreeve-"+rel.Version+"-*.rpm", filepath.Base(p)); !ok {
-				os.Remove(p)
-			}
-		}
-		step("Packages for hosts in %s", upgradeHostRPMs)
+		step("Packages for hosts in %s", upgradeHostPackages)
 	}
 
 	// The rest is for the new version to do.
 	args := []string{"upgrade", "finish"}
 	if o.withHosts {
 		args = append(args, "-with-hosts")
-		if len(forHosts) > 0 {
+		if len(hostRPMs(rel)) > 0 {
 			args = append(args, "-rpm", dir)
 		}
 	}
@@ -676,7 +706,7 @@ func upgradeFinish(ctx context.Context, o *options) error {
 			if dir != "" {
 				where = " (in " + dir + ")"
 			}
-			fmt.Printf("\nThe hosts are not upgraded yet. Hosts that got fleetreeve as a package keep their version until you run\n  sudo fleetreeve upgrade -with-hosts\nor `fleetreeve enroll -rpm <dir with the packages>`%s; other hosts fetch the new build from the server by themselves at their next run.\n", where)
+			fmt.Printf("\nThe hosts follow by themselves at their next run. Hosts whose fleetreeve package is older than 0.1.3 cannot do that yet: upgrade those once with\n  sudo fleetreeve upgrade -with-hosts\nor `fleetreeve enroll -rpm <dir with the packages>`%s.\n", where)
 		}
 		return nil
 	}
