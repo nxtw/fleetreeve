@@ -6,6 +6,13 @@ minor version may change behaviour, and this file says where.
 
 ## Unreleased
 
+- **Fixed: a host moved from one server to another could not reach its new
+  server.** It kept the certificate of the old one, which the new server
+  turned away before the host could ask for another ("remote error: tls:
+  unknown certificate authority" in the host's log); it went on enforcing
+  its last configuration and stopped reporting. `fleetreeve enroll` now
+  notices such a certificate and replaces it, as `-new-cert` does. For a
+  host that is stuck this way, enrol it again with this version.
 - **The example module `fleetreeve.nginx` creates web roots owned by root**
   instead of by the nginx user (module version 0.2.0), so that a
   compromised nginx process cannot rewrite the content it serves. Projects

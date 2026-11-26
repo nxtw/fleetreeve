@@ -43,7 +43,7 @@ type Executor interface {
 	State(ctx context.Context, name string, forget []string) (*state.File, error)
 	// Probe runs fn-side check "can this node reach url?" on the node and
 	// returns its error, if any. req is passed to the node as JSON.
-	Probe(ctx context.Context, req ProbeRequest) error
+	Probe(ctx context.Context, req ProbeRequest) (ProbeResult, error)
 	// Rollback restores resources to an earlier kept version, releases
 	// them, or lists what the node has kept.
 	Rollback(ctx context.Context, req engine.RollbackRequest) ([]engine.RollbackResult, error)
@@ -92,9 +92,16 @@ type ProbeRequest struct {
 	Insecure bool   `json:"insecure,omitempty"`
 }
 
+// ProbeResult is what a node found besides "the server can be reached".
+type ProbeResult struct {
+	// CertRefused: the node holds a certificate that this server does not
+	// accept, as after a move from another server.
+	CertRefused bool `json:"cert_refused,omitempty"`
+}
+
 // ProbeFunc performs a probe on the node. It is set by the pull package's
 // user (the cli), which keeps this package free of a dependency on it.
-var ProbeFunc func(ctx context.Context, req ProbeRequest) error
+var ProbeFunc func(ctx context.Context, req ProbeRequest) (ProbeResult, error)
 
 func (local) Rollback(ctx context.Context, req engine.RollbackRequest) ([]engine.RollbackResult, error) {
 	return engine.Rollback(core.NewCtx(ctx, nil, false), req)
@@ -122,25 +129,30 @@ func (s *ssh) Rollback(ctx context.Context, req engine.RollbackRequest) ([]engin
 	return resp.Results, nil
 }
 
-func (local) Probe(ctx context.Context, req ProbeRequest) error { return ProbeFunc(ctx, req) }
+func (local) Probe(ctx context.Context, req ProbeRequest) (ProbeResult, error) {
+	return ProbeFunc(ctx, req)
+}
 
-func (s *ssh) Probe(ctx context.Context, req ProbeRequest) error {
+func (s *ssh) Probe(ctx context.Context, req ProbeRequest) (ProbeResult, error) {
+	var resp struct {
+		ProbeResult
+		Error string
+	}
 	if err := s.bootstrap(ctx); err != nil {
-		return err
+		return resp.ProbeResult, err
 	}
 	payload, _ := json.Marshal(req)
 	var out bytes.Buffer
 	if _, err := s.exec(ctx, s.agentCmd("probe"), bytes.NewReader(payload), &out); err != nil {
-		return err
+		return resp.ProbeResult, err
 	}
-	var resp struct{ Error string }
 	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
-		return fmt.Errorf("unexpected agent output: %.200s", out.String())
+		return resp.ProbeResult, fmt.Errorf("unexpected agent output: %.200s", out.String())
 	}
 	if resp.Error != "" {
-		return errors.New(resp.Error)
+		return resp.ProbeResult, errors.New(resp.Error)
 	}
-	return nil
+	return resp.ProbeResult, nil
 }
 
 // EditState is the node side of State.

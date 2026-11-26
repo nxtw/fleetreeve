@@ -426,11 +426,13 @@ func agent(args []string) int {
 	}
 	if len(args) == 1 && args[0] == "probe" {
 		var req remote.ProbeRequest
-		resp := map[string]string{}
+		resp := map[string]any{}
 		if err := json.NewDecoder(os.Stdin).Decode(&req); err != nil {
 			resp["error"] = "reading probe request: " + err.Error()
-		} else if err := probeServer(context.Background(), req); err != nil {
+		} else if res, err := probeServer(context.Background(), req); err != nil {
 			resp["error"] = err.Error()
+		} else if res.CertRefused {
+			resp["cert_refused"] = true
 		}
 		enc.Encode(resp)
 		return 0
