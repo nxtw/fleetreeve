@@ -15,6 +15,7 @@
 | `fleetreeve run -- <command>` | Ad-hoc shell command on each host. |
 | `fleetreeve types [type]` | Built-in documentation, including module types. |
 | `fleetreeve module add\|install\|verify\|list\|init` | Extend fleetreeve with modules: roles and resource types. |
+| `sudo fleetreeve upgrade` | Bring fleetreeve on this machine to the newest release, and a server's services with it. See [Upgrading](server-setup.md#upgrading). |
 
 Common options: `-i inventory`, `-l hosts,groups`, `-e key=value`,
 `-forks n`, `-report file.json`, `-no-prune`, `-v`, `-no-diff`.

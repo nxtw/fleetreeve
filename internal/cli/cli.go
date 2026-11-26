@@ -71,6 +71,12 @@ Pull mode (optional; nodes fetch their own catalog instead of being pushed to):
                                             Set up a fleetreeve server on this machine by answering a few
                                             questions (with sudo; -yes takes every default; -container
                                             runs it in podman containers, -vault-deploy adds Vault)
+  fleetreeve upgrade [-version <v>] [-from <dir>] [-with-hosts] [-plan] [-yes]
+                                            Upgrade fleetreeve on this machine to the newest release (with
+                                            sudo): fetch it, verify its checksums, install it the way this
+                                            one was installed, and on a server restart the server and the
+                                            console on it. -with-hosts upgrades the hosts too; -from takes
+                                            the release from a directory instead of from GitHub
   fleetreeve vault setup|check|ca|certs|revoke   HashiCorp Vault as certificate authority for hosts:
                                             prepare Vault, check it, list and revoke certificates
   fleetreeve vault deploy|unseal                 Run Vault on this machine, in a container (deploy: with sudo)
@@ -194,6 +200,8 @@ type options struct {
 	release                                      bool
 	config                                       string // settings file in use, if any
 	join                                         string
+	from                                         string // upgrade: a directory with a release
+	withHosts                                    bool   // upgrade: the hosts as well
 	ttl                                          time.Duration
 	args                                         []string
 }
@@ -282,6 +290,8 @@ func parse(cmd string, args []string) (*options, error) {
 	fs.StringVar(&o.factsFile, "facts", "", "")
 	fs.BoolVar(&o.release, "release", false, "")
 	fs.BoolVar(&o.selfUpdate, "self-update", false, "")
+	fs.StringVar(&o.from, "from", "", "")
+	fs.BoolVar(&o.withHosts, "with-hosts", false, "")
 	fs.StringVar(&o.join, "join", "", "")
 	fs.DurationVar(&o.ttl, "ttl", 0, "")
 	// Defaults from the settings file come first; flags override them.
@@ -400,6 +410,8 @@ func Main(args []string) int {
 		err = identity(o)
 	case "setup":
 		err = setup(ctx, o)
+	case "upgrade":
+		err = upgrade(ctx, o)
 	case "vault":
 		err = vaultCmd(ctx, o)
 	case "types":
@@ -407,7 +419,7 @@ func Main(args []string) int {
 	case "version":
 		fmt.Println("fleetreeve", Version)
 	default:
-		err = fmt.Errorf("unknown command %q%s", cmd, core.Suggest(cmd, []string{"plan", "apply", "validate", "graph", "lookup", "rollback", "facts", "state", "run", "types", "serve", "token", "enroll", "unenroll", "install", "pull", "status", "dashboard", "user", "module", "identity", "setup", "vault", "version"}))
+		err = fmt.Errorf("unknown command %q%s", cmd, core.Suggest(cmd, []string{"plan", "apply", "validate", "graph", "lookup", "rollback", "facts", "state", "run", "types", "serve", "token", "enroll", "unenroll", "install", "pull", "status", "dashboard", "user", "module", "identity", "setup", "upgrade", "vault", "version"}))
 	}
 	if err != nil {
 		notef(slog.LevelError, "%v", err)

@@ -26,7 +26,7 @@ stand on their own; read what you need.
 | | |
 | --- | --- |
 | [Pull mode](pull-mode.md) | hosts that fetch their own configuration; enrolment, tokens, reports, history |
-| [Setting up a server](server-setup.md) | `sudo fleetreeve setup`, as services or as containers; the server's own user and key |
+| [Setting up a server](server-setup.md) | `sudo fleetreeve setup`, as services or as containers; the server's own user and key; upgrading with `sudo fleetreeve upgrade` |
 | [Certificates for hosts](certificates.md) | HashiCorp Vault as certificate authority; certificates for the web interfaces |
 | [The web console](console.md) | what it shows, accounts and roles, applying and rolling back from a browser |
 | [Server API](api.md) | the HTTP API; the full description is [`api/openapi.yaml`](../api/openapi.yaml) |
