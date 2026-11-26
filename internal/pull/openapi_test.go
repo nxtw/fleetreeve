@@ -40,6 +40,7 @@ func TestOpenAPICoversRoutes(t *testing.T) {
 		"/v1/certs":                           {"get"},
 		"/v1/certs/{name}":                    {"delete"},
 		"/v1/agent/{platform}":                {"get"},
+		"/v1/package/{package}":               {"get"},
 		"/install.sh":                         {"get"},
 	}
 	for path, methods := range routes {

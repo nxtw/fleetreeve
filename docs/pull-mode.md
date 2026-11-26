@@ -97,7 +97,9 @@ cloud-init snippets.
 `fleetreeve pull -self-update`: before each run it compares its own binary with
 the server's build for its platform and, if they differ, replaces itself
 (checksum-verified) and restarts in place. Upgrade the server and its
-`agents/` directory, and the fleet follows on its next check-in.
+`agents/` directory, and the fleet follows on its next check-in. Hosts
+that have fleetreeve from a package follow as well, by installing the
+server's newer [package](packages.md).
 
 `enroll` also **registers the host with the server**, so the server's
 inventory does not have to be edited by hand for every new node. The host

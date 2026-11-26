@@ -223,7 +223,10 @@ type Server struct {
 	Certs       string
 	RequireCert bool
 	Version     string // reported by GET /v1/health
-	Log         *slog.Logger
+	// Packages is a directory of fleetreeve client packages (rpm, deb) that
+	// hosts installed from a package upgrade themselves with; "" offers none.
+	Packages string
+	Log      *slog.Logger
 }
 
 func (s *Server) Handler() http.Handler {
@@ -251,6 +254,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /v1/hosts/{name}", s.registerHost)
 	mux.HandleFunc("DELETE /v1/hosts/{name}", s.unregisterHost)
 	mux.HandleFunc("GET /v1/agent/{file}", s.agent)
+	mux.HandleFunc("GET /v1/package/{file}", s.pkg)
 	mux.HandleFunc("GET /install.sh", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/x-shellscript")
 		io.WriteString(w, InstallScript)

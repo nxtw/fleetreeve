@@ -483,6 +483,21 @@ paths:
       responses:
         "200": {description: The binary, or its SHA-256 in hex.}
         "404": {$ref: "#/components/responses/Error"}
+  /v1/package/{package}:
+    get:
+      tags: [node]
+      summary: Download the fleetreeve client package of the server's version
+      description: >-
+        `{package}` is a packaging system and its name for an architecture:
+        `rpm-x86_64`, `rpm-aarch64`, `deb-amd64`, `deb-arm64`. Append `.json`
+        for the package's version, SHA-256 and file name. Hosts that have
+        fleetreeve from a system package upgrade themselves with this.
+      security: []
+      parameters:
+        - {name: package, in: path, required: true, schema: {type: string, example: rpm-x86_64}}
+      responses:
+        "200": {description: "The package, or with `.json` an object with `version`, `sha256` and `file`."}
+        "404": {$ref: "#/components/responses/Error"}
   /install.sh:
     get:
       tags: [node]
