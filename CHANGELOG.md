@@ -13,7 +13,8 @@ minor version may change behaviour, and this file says where.
   image anew and restarts the server and the console on the new version.
   `-with-hosts` upgrades the hosts' packages too, `-from <dir>` works
   without access to the internet, `-plan` shows what would happen. See
-  [Upgrading](docs/server-setup.md#upgrading). Getting to this version
+  [Upgrading](docs/server-setup.md#upgrading). It takes its options from
+  the command line only, never from `.fleetreeve.yaml`. Getting to this version
   from 0.1.1 is still done by hand, once.
 - **New: `fleetreeve unenroll <host>`** takes a host out of pull mode. It
   is `fleetreeve enroll <host> -remove` under a name that can be found;

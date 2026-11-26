@@ -248,3 +248,35 @@ func TestUpgradeUsesTheNewImage(t *testing.T) {
 		t.Error("an image setup did not make was replaced")
 	}
 }
+
+// upgrade installs software as root. A settings file is found from the
+// current directory upwards, so anyone who can write a .fleetreeve.yaml
+// where an administrator runs the command could otherwise choose what
+// gets installed.
+func TestUpgradeIgnoresTheSettingsFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, ".fleetreeve.yaml"), []byte(
+		"from: /tmp/planted\nyes: true\nversion: 9.9.9\nserver: https://example.test:8140\nupgrade:\n  from: /tmp/planted\n  with-hosts: true\n  yes: true\n  plan: true\n"), 0o644)
+	t.Setenv("FLEETREEVE_CONFIG", "")
+	t.Chdir(dir)
+	o, err := parse("upgrade", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.from != "" || o.yes || o.withHosts || o.modVersion != "" || o.plan || o.config != "" {
+		t.Errorf("upgrade took settings from the file: from=%q yes=%v with-hosts=%v version=%q plan=%v (file %q)", o.from, o.yes, o.withHosts, o.modVersion, o.plan, o.config)
+	}
+	// The command line still decides.
+	if o, err = parse("upgrade", []string{"-from", "/rel", "-yes"}); err != nil || o.from != "/rel" || !o.yes {
+		t.Errorf("command line: %+v, %v", o, err)
+	}
+	// Other commands read the file as before.
+	if o, err = parse("enroll", nil); err != nil || o.server != "https://example.test:8140" {
+		t.Errorf("enroll no longer reads the settings file: %+v, %v", o, err)
+	}
+	// A file named in the environment is ignored as well.
+	t.Setenv("FLEETREEVE_CONFIG", filepath.Join(dir, ".fleetreeve.yaml"))
+	if o, err = parse("upgrade", nil); err != nil || o.from != "" || o.yes {
+		t.Errorf("upgrade took settings from $FLEETREEVE_CONFIG: %+v, %v", o, err)
+	}
+}

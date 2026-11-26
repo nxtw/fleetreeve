@@ -172,6 +172,9 @@ services.
 
 Things to know:
 
+- `upgrade` does not read `.fleetreeve.yaml`: what it installs, as root,
+  is decided by its command line only, not by a file in the directory
+  you happen to be in.
 - The checksums show that a file is what the release published; both come
   from the same place. Packages are not signed.
 - A server whose container you set up yourself (not through `setup`) is
