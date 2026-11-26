@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -152,9 +153,19 @@ func enroll(ctx context.Context, o *options) (int, error) {
 			// A node pointed at an address it cannot reach keeps running
 			// from its cached catalog and silently stops reporting, so
 			// refuse before changing anything.
+			newCert := o.newCert
 			if !o.skipCheck {
-				if err := remote.New(h).Probe(ctx, remote.ProbeRequest{Server: o.server, CA: ca, Insecure: o.insecure}); err != nil {
+				found, err := remote.New(h).Probe(ctx, remote.ProbeRequest{Server: o.server, CA: ca, Insecure: o.insecure})
+				if err != nil {
 					return nil, fmt.Errorf("this node cannot reach the server at %s, so nothing was changed: %v (check the address; -skip-check enrols anyway)", o.server, err)
+				}
+				// A certificate from another server (the host is being
+				// moved here), or from an authority this server no longer
+				// uses: with it the node would be turned away at every
+				// pull and never get to ask for a new one.
+				if found.CertRefused && !newCert {
+					notef(slog.LevelInfo, "%s: this server does not accept the certificate the host has (it is from another server or authority), so it gets a new one", h.Name)
+					newCert = true
 				}
 			}
 			// Make the host known to the server, with its groups and its
@@ -163,13 +174,13 @@ func enroll(ctx context.Context, o *options) (int, error) {
 			// touched: a node enrolled against a server that refuses it
 			// would only fail on every pull.
 			if !o.noRegister && !o.plan {
-				if err := register(ctx, o, h, secret); err != nil {
+				if err := register(ctx, o, h, secret, newCert); err != nil {
 					return nil, err
 				}
 			}
 			spec := enrollSpec{
 				Server: o.server, Host: h.Name, Token: pull.Token(secret, h.Name),
-				CA: ca, Every: every, Insecure: o.insecure, Packaged: isPackaged(f), NewCert: o.newCert,
+				CA: ca, Every: every, Insecure: o.insecure, Packaged: isPackaged(f), NewCert: newCert,
 			}
 			if o.rpm != "" {
 				if pm := fmt.Sprint(f["package_manager"]); pm != "dnf" && pm != "yum" && pm != "zypper" {
@@ -278,12 +289,13 @@ func install(ctx context.Context, o *options) (int, error) {
 }
 
 // register adds a host to the server's registry on behalf of enroll.
-func register(ctx context.Context, o *options, h *compile.Host, secret []byte) error {
+// newCert has the server forget the host's certificate.
+func register(ctx context.Context, o *options, h *compile.Host, secret []byte, newCert bool) error {
 	c, err := pull.NewClient(o.server, h.Name, "", o.ca, o.insecure)
 	if err != nil {
 		return err
 	}
-	res, err := c.RegisterHost(ctx, pull.AdminToken(secret), pull.HostEntry{Name: h.Name, Groups: h.Groups, Vars: h.Vars, NewCert: o.newCert})
+	res, err := c.RegisterHost(ctx, pull.AdminToken(secret), pull.HostEntry{Name: h.Name, Groups: h.Groups, Vars: h.Vars, NewCert: newCert})
 	switch {
 	case errors.Is(err, pull.ErrNoRegistry):
 		notef(slog.LevelWarn, "%s: %v; it must be in the server's inventory file", h.Name, err)
@@ -303,13 +315,30 @@ func register(ctx context.Context, o *options, h *compile.Host, secret []byte) e
 func init() { remote.ProbeFunc = probeServer }
 
 // probeServer runs on the node: can it reach the pull server it is about
-// to be pointed at, with the address and CA it will be given?
-func probeServer(ctx context.Context, req remote.ProbeRequest) error {
+// to be pointed at, with the address and CA it will be given? And if the
+// node already holds a certificate, does that server accept it?
+func probeServer(ctx context.Context, req remote.ProbeRequest) (remote.ProbeResult, error) {
+	var res remote.ProbeResult
 	c, err := pull.NewClientCA(req.Server, "", "", req.CA, req.Insecure)
 	if err != nil {
-		return err
+		return res, err
 	}
-	return c.Ping(ctx)
+	if err := c.Ping(ctx); err != nil {
+		return res, err
+	}
+	certFile, keyFile := nodeCertFiles(nodeCertDir)
+	if _, err := tls.LoadX509KeyPair(certFile, keyFile); err != nil {
+		return res, nil // none, or not a usable pair: the service sees to that
+	}
+	// The server just answered without a certificate. If it ends the
+	// connection when shown this one, the certificate is what it objects
+	// to. A certificate it knows but has revoked is not reported here:
+	// the service notices that itself and asks for another.
+	c.WithCert(certFile, keyFile)
+	if err := c.Ping(ctx); err != nil && strings.Contains(err.Error(), "remote error: tls:") {
+		res.CertRefused = true
+	}
+	return res, nil
 }
 
 // enrollable checks that a node can run the pull service.

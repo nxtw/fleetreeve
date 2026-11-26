@@ -81,6 +81,22 @@ the host drop its old files; at its next run the host gets a new one with
 its token. Taking a host out of pull mode (`enroll -remove`) revokes its
 certificate too.
 
+## A host that moves to another server
+
+Enrol it with the new server, as you would a new host:
+
+```sh
+fleetreeve enroll web3
+```
+
+The host still holds the certificate its old server gave it, which the new
+server's authority did not sign. `enroll` checks for that on the host and,
+when the new server turns the certificate away, does what `-new-cert` does
+and says so. (It checks as part of testing that the host can reach the
+server, so not with `-skip-check`; give `-new-cert` yourself then.) The
+same goes for hosts of a server whose authority was replaced. Afterwards,
+take the host out of the old server's inventory.
+
 If the server forgot a host's certificate while the host still has its
 old files - the host was enrolled again from elsewhere, say - the host
 notices at its next run that the server no longer knows its certificate,
@@ -439,6 +455,7 @@ from the hosts, so they simply count again.
 | --- | --- | --- |
 | *this server only accepts hosts that show their certificate* | certificates are required and the host showed none | nothing: `fleetreeve pull` gets it one, unless the next line applies |
 | *this host already has a certificate, so its token no longer gets it one* | a certificate was asked for with the token although the host has a valid one | if the host was rebuilt or lost its key: `fleetreeve enroll <host> -new-cert`. If not, someone else has the host's token: look into that |
+| the host's log says *remote error: tls: unknown certificate authority* | the host shows a certificate from another server, or from an authority this server no longer uses | `fleetreeve enroll <host>` from this server: it replaces the certificate |
 | *this is not the current certificate of …* | a certificate that was since replaced is being shown | on the host itself this does not normally happen; elsewhere it is a copy of an old certificate being tried |
 | *the server has no record of a certificate for …* | the host was started over on the server | nothing: the host drops the old certificate and asks again at the same run |
 | *the certificate authority did not sign the request* | Vault refused or could not be reached | the message carries Vault's own words; most often the role (`key_type`, allowed names) or the token's policy |
