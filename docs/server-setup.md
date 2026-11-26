@@ -183,6 +183,6 @@ Things to know:
   and the command says what did not succeed; running it again repeats
   those steps. `-version` with the previous release goes back.
 - Vault is not upgraded: its container runs the image you chose.
-- The first version with this command is the one after 0.1.1; to get
-  there from 0.1.0 or 0.1.1, install the new package by hand and run
+- The first version with this command is 0.1.2; to get there from 0.1.0
+  or 0.1.1, install the new package by hand and run
   `sudo fleetreeve setup -yes` once.
