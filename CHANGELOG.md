@@ -4,7 +4,7 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
-## Unreleased
+## 0.1.5
 
 - **Fixed: a server with Vault did not come back after its machine had
   been off for more than a day.** The server's Vault token lived 24 hours
