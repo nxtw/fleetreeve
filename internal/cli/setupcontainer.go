@@ -405,16 +405,19 @@ func containerVaultFiles(ctx context.Context, o *options, ans *setupAnswers, uid
 		}
 		// Vault's CA, where the server's container can read it.
 		if ans.VaultCA != "" {
-			if ans.VaultCA != ctrCA {
-				pem, err := os.ReadFile(ans.VaultCA)
-				if err != nil {
-					return false, err
-				}
-				if err := os.WriteFile(ctrCA, pem, 0o644); err != nil {
-					return false, err
-				}
+			// ctrCA is in the server user's directory: see ownedfile.go.
+			from := ans.VaultCA
+			read := os.ReadFile
+			if from == ctrCA {
+				read = readOwned
 			}
-			os.Chown(ctrCA, uid, gid)
+			pem, err := read(from)
+			if err != nil {
+				return false, err
+			}
+			if err := writeOwned(ctrCA, pem, 0o644, uid, gid); err != nil {
+				return false, err
+			}
 			ca = true
 		} else {
 			os.Remove(ctrCA)

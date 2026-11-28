@@ -441,8 +441,11 @@ func renewServerToken(ctx context.Context, o *options) error {
 	if tokenFile == "" {
 		return nil
 	}
-	b, err := os.ReadFile(tokenFile)
+	// The token file is in a directory the server's user owns: see
+	// ownedfile.go for why it is not simply read and written by name.
+	b, err := readOwned(tokenFile)
 	if err != nil {
+		fmt.Printf("The fleetreeve server's Vault token could not be read: %v\n", err)
 		return nil
 	}
 	so := *o
@@ -456,17 +459,20 @@ func renewServerToken(ctx context.Context, o *options) error {
 			}
 		}
 	}
-	server, err := vaultClient(&so, strings.TrimSpace(string(b)))
-	if err != nil {
-		return nil
-	}
-	alive, err := server.TokenAlive(ctx)
-	if err != nil {
-		fmt.Printf("The fleetreeve server's Vault token could not be checked: %v\n", err)
-		return nil
-	}
-	if alive {
-		return nil
+	// An empty file holds no token: that is a token that is gone, too.
+	if have := strings.TrimSpace(string(b)); have != "" {
+		server, err := vaultClient(&so, have)
+		if err != nil {
+			return nil
+		}
+		alive, err := server.TokenAlive(ctx)
+		if err != nil {
+			fmt.Printf("The fleetreeve server's Vault token could not be checked: %v\n", err)
+			return nil
+		}
+		if alive {
+			return nil
+		}
 	}
 	root, err := os.ReadFile(vaultRootToken)
 	if err != nil {
@@ -484,7 +490,7 @@ func renewServerToken(ctx context.Context, o *options) error {
 		return nil
 	}
 	// In place: the file keeps its owner, the user the server runs as.
-	if err := os.WriteFile(tokenFile, []byte(token+"\n"), 0o600); err != nil {
+	if err := writeOwned(tokenFile, []byte(token+"\n"), 0o600, -1, -1); err != nil {
 		fmt.Printf("The fleetreeve server's Vault token is no longer accepted, and the new one could not be written: %v\n", err)
 		return nil
 	}

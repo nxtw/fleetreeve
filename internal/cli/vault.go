@@ -84,10 +84,9 @@ func vaultSetup(ctx context.Context, o *options, adminToken, tokenFile string, d
 	if err != nil {
 		return did, err
 	}
-	if err := os.WriteFile(tokenFile, []byte(token+"\n"), 0o600); err != nil {
+	if err := writeOwned(tokenFile, []byte(token+"\n"), 0o600, -1, -1); err != nil {
 		return did, err
 	}
-	os.Chmod(tokenFile, 0o600)
 	// Prove it before anyone relies on it.
 	server, err := vaultClient(o, token)
 	if err == nil {
