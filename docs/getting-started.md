@@ -89,7 +89,8 @@ resources:
 `fleetreeve types` lists what can be managed (`file`, `package`, `service`,
 `user`, `exec`, `line`, ...), and `fleetreeve types file` documents one.
 [Manifests](manifests.md) explains ordering, variables, templates and
-conditions.
+conditions - `when: facts.os.family == "redhat"` on a resource makes it
+apply to some hosts only.
 
 ## A first remote host
 

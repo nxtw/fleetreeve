@@ -43,35 +43,9 @@ resources:
 **Metaparameters** (any resource): `require`, `before`, `notify`,
 `subscribe`, `when`, `each`, `rollback`. References are written `type[title]`.
 
-**Conditions** (`when:`) are written the way they are read. Variables are
-named as they are, without braces or a leading dot:
-
-```yaml
-when: facts.os.family == "redhat"
-when: docker_repo and facts.os.family == "redhat"
-when: host.groups has "web"
-when: not sudo and (env != "production" or uid > 0)
-```
-
-| | |
-| --- | --- |
-| a variable on its own | true unless it is `false`, `0`, empty (text, list or map), or one of the texts `false`, `no`, `off`, `0` |
-| `==` `!=` `<` `<=` `>` `>=` | comparing two values |
-| `list has item`, `item in list`, `item not in list` | membership; with two texts, whether one is part of the other |
-| `not`, `and`, `or` | in that order of precedence: `not a and b or c` is `((not a) and b) or c`. Brackets group otherwise |
-| `name.field`, `name["a-key"]`, `list[0]` | a field of a map; a key that is not a plain name; an item by position |
-| `"text"`, `'text'`, `12`, `true`, `false` | values |
-| `f(a, b)` | a function from the list below: `defined("item.shell")`, `len(keys) > 1` |
-
-A condition is available on every resource and on every `include`. A
-variable that does not exist is a compile error, as everywhere; ask with
-`defined("name")` first for optional ones. A condition whose text would
-start with a quote needs quoting as a whole in YAML, which `has` avoids:
-`host.groups has "web"` rather than `'"web" in host.groups'`.
-
-Conditions can also be written as template expressions, which is how they
-were written up to version 0.1.3: `and .docker_repo (eq .facts.os.family
-"redhat")`. That form keeps working and means the same.
+**Conditions** (`when:`) decide per host whether a resource or an include
+applies: `when: facts.os.family == "redhat"`. See
+[Conditions](#conditions) below.
 
 **Templating** is Go `text/template`, in any string and in `template:` files.
 Variables are at the top level (`{{ .http_port }}`); also available are
@@ -88,6 +62,119 @@ pass through. Referencing an undefined variable is a compile error; use
 manifests' `vars` → inventory `vars` → group `vars` → host `vars` → the
 [data layer](data.md) → `include` `vars` →
 `-e key=value`.
+
+## Conditions
+
+`when:` on a resource, or on an `include`, says for which hosts it
+applies. Where the condition is false the resource is not in that host's
+catalog at all. A condition is written the way it is read, with variables
+named as they are - no braces, no leading dot:
+
+```yaml
+resources:
+  - package: policycoreutils-python-utils
+    when: facts.os.family == "redhat"                     # by operating system
+
+  - service: nginx
+    when: host.groups has "web"                           # by inventory group
+
+  - file: /etc/motd
+    content: "Test system\n"
+    when: env != "production" and not quiet               # by your own variables
+
+  - file: "/etc/sudoers.d/{{ .item.name }}"
+    each: "{{ .users }}"
+    when: item.admin                                      # per item of a loop
+    content: "{{ .item.name }} ALL=(ALL) ALL\n"
+
+include:
+  - module: fleetreeve.docker
+    when: host.groups has "docker" and facts.os.family != "darwin"
+```
+
+### What a condition can say
+
+| | | |
+| --- | --- | --- |
+| a variable | `monitoring` | true unless it is `false`, `0`, empty (text, list or map), or one of the texts `false`, `no`, `off`, `0` |
+| equal, not equal | `env == "production"`, `env != "production"` | |
+| smaller, larger | `port < 1024`, `port <= 1024`, `uid > 0`, `uid >= 1000` | |
+| in a list | `host.groups has "web"`, `"web" in host.groups`, `"web" not in host.groups` | the first two mean the same |
+| part of a text | `host.name has "db"`, `"db" in host.name` | |
+| not | `not quiet` | |
+| and | `a and b` | both |
+| or | `a or b` | at least one |
+| brackets | `a and (b or c)` | |
+
+**Values:** a variable (`env`), a field of one (`facts.os.family`,
+`item.name`), text in double or single quotes (`"web"`, `'web'`), a number
+(`8080`), `true`, `false`.
+
+**What is available** is what templates have, by the same names: your
+variables, `facts` (see `fleetreeve facts`), `host` (`name`, `address`,
+`groups`), `inventory`, and inside `each`, `item`.
+
+**Without brackets**, `not` is applied first, then `and`, then `or`:
+`not a and b or c` is `((not a) and b) or c`. Comparisons come before all
+three, so `not uid > 0` is `not (uid > 0)`. When in doubt, add brackets.
+
+**Keys that are not plain names**, and items by position, go in square
+brackets: `limits["max-size"] == "10m"`, `servers[0] == "a"`.
+
+**Functions** are those of the [templates](#manifests), written with
+brackets: `len(keys) > 1`, `defined("item.shell")`,
+`hasPrefix("web", host.name)`, `lower(env) == "production"`.
+
+### Things to know
+
+- **A variable that does not exist is an error**, as everywhere in
+  fleetreeve, so that a typing mistake does not silently switch
+  something off. For a variable that may be missing, ask first; what
+  follows `and` is not looked at when the first part is false:
+
+  ```yaml
+  when: defined("backup_target") and backup_target != ""
+  ```
+
+- **Compare like with like.** `port == 8080` compares numbers and
+  `port == "8080"` texts; comparing a number with a text is an error
+  that says so. What a variable is follows from how it is written in
+  your data: `port: 8080` is a number, `port: "8080"` a text.
+- **Text that means no is no.** A variable holding the text `no`,
+  `false`, `off` or `0` counts as false, alone and next to `and`, `or`
+  and `not`. This helps with values that arrive as text, from `-e` on the
+  command line for instance.
+- **`has` reads well and needs no extra quotes.** YAML requires a value
+  that begins with a quote to be quoted as a whole, so the other
+  spelling becomes `when: '"web" in host.groups'`.
+- **Slips are explained.** `=` where `==` was meant, `&&`, `||` and `!`
+  each get a message that says what to write.
+- A condition is not a place for `{{ }}`. If you do write a template
+  there, it is rendered and its output judged by the first row of the
+  table above.
+
+### The older form
+
+Up to version 0.1.3 a condition was a template expression, with the
+operator first and a dot before every variable. That form keeps working
+and means the same; you do not have to change anything. Side by side:
+
+| Older | Now |
+| --- | --- |
+| `eq .facts.os.family "redhat"` | `facts.os.family == "redhat"` |
+| `ne .env "production"` | `env != "production"` |
+| `contains "web" .host.groups` | `host.groups has "web"` |
+| `and .docker_repo (eq .facts.os.family "redhat")` | `docker_repo and facts.os.family == "redhat"` |
+| `or (eq .a 1) (eq .b 2)` | `a == 1 or b == 2` |
+| `and (eq .ensure "present") (not .sudo)` | `ensure == "present" and not sudo` |
+| `gt .uid 0` | `uid > 0` |
+| `.item.admin` | `item.admin` |
+| `defined "item.shell"` | `defined("item.shell")` |
+
+fleetreeve tells the two apart by the dot in front of a variable, which
+only the older form has. One condition is in one form or the other, not a
+mixture. With an older fleetreeve on a server, keep to the older form:
+versions before 0.1.4 do not read the new one.
 
 ## Purging: directories that hold only what is managed
 

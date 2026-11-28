@@ -488,10 +488,13 @@ Inside the type, resources refer to each other as they would anywhere:
 unless relationships say otherwise - as in any manifest.
 
 **Conditions and loops.** `when` and `each` work inside a type, and on a
-use of it. A use with a false `when` declares nothing. Inside the type,
-`.item` is the type's own loop variable where it uses `each`; outside
-such a loop, the `.item` of a surrounding `each` (the one on the use) is
-visible.
+use of it. A use with a false `when` declares nothing. A condition in a
+type sees the type's parameters by their names, next to the module's
+variables and the facts (`when: ensure == "present" and sudo`); how
+conditions are written is in [Manifests](manifests.md#conditions). Inside
+the type, `.item` (`item` in a condition) is the type's own loop variable
+where it uses `each`; outside such a loop, the `.item` of a surrounding
+`each` (the one on the use) is visible.
 
 **Rollback.** `rollback: true` inside the type applies to that resource.
 `rollback: true` on a use applies to every resource of it whose type can

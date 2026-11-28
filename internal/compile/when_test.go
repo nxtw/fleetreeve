@@ -139,8 +139,10 @@ func TestConditionMistakesAreExplained(t *testing.T) {
 		`facts. == 1`:                "expected a name after the dot",
 		`daemon[logdriver] == 1`:     "expected a quoted key or a number",
 		`nosuchfunction(env)`:        "there is no function nosuchfunction",
-		`docker_repoo and sudo`:      `docker_repoo`, // a variable that does not exist is named
-		`facts.os.famly == "redhat"`: `famly`,
+		`uid == "2001"`:              "it compares a number with a text",
+		`env == 1`:                   "it compares a text with a number",
+		`docker_repoo and sudo`:      `there is no variable or field "docker_repoo"`,
+		`facts.os.famly == "redhat"`: `there is no variable or field "famly"`,
 		`or sudo`:                    "",
 	} {
 		_, err := evalWhen(cond, whenData())

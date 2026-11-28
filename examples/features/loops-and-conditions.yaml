@@ -51,8 +51,8 @@ resources:
     line: "* soft {{ .item.key }} {{ .item.value }}"
     require: file[{{ .root }}]
 
-  # when on facts and variables. A bare expression; `and`, `or`, `not`,
-  # `eq`, `ne`, `lt`, `gt` are available.
+  # when on facts and variables, written as it is read: ==, !=, <, >,
+  # has, in, not, and, or, brackets. See docs/manifests.md, "Conditions".
   - file: "{{ .root }}/debug.flag"
     when: env != "production"
     content: "debug on\n"
