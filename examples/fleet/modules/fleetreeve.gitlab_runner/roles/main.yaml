@@ -4,19 +4,19 @@ resources:
   - exec: fleetreeve.gitlab_runner supports the Red Hat family only
     command: 'echo "this host is {{ .facts.os.pretty }}" >&2; exit 1'
     unless: "false"
-    when: ne .facts.os.family "redhat"
+    when: facts.os.family != "redhat"
 
   # GitLab's own package repository, exactly as their install script
   # writes it. Packages and metadata are signature-checked.
   - file: /etc/yum.repos.d/runner_gitlab-runner.repo
     template: ../templates/gitlab-runner.repo.tmpl
     mode: 0644
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 
   - package: gitlab-runner
     name: 'gitlab-runner{{ if .gitlab_runner_version }}-{{ .gitlab_runner_version }}{{ end }}'
     require: file[/etc/yum.repos.d/runner_gitlab-runner.repo]
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 
   # The runners. It holds their tokens: readable by root only, and never
   # shown in diffs or reports. GitLab Runner notices changes to this file
@@ -28,7 +28,7 @@ resources:
     group: root
     sensitive: true
     require: package[gitlab-runner]
-    when: and (not .gitlab_runner_register) (eq .facts.os.family "redhat")
+    when: not gitlab_runner_register and facts.os.family == "redhat"
 
   # The other way: the host registers its runners itself (and creates them
   # in GitLab when given an access token). `gitlab-runner register` then
@@ -39,14 +39,14 @@ resources:
     line: "concurrent = {{ .gitlab_runner_concurrent }}"
     match: '^concurrent\s*='
     require: package[gitlab-runner]
-    when: and .gitlab_runner_register (eq .facts.os.family "redhat")
+    when: gitlab_runner_register and facts.os.family == "redhat"
 
   - line: gitlab-runner check_interval
     path: /etc/gitlab-runner/config.toml
     line: "check_interval = {{ .gitlab_runner_check_interval }}"
     match: '^check_interval\s*='
     require: package[gitlab-runner]
-    when: and .gitlab_runner_register (eq .facts.os.family "redhat")
+    when: gitlab_runner_register and facts.os.family == "redhat"
 
   - fleetreeve.gitlab_runner.runner: '{{ required "gitlab_runner_register: every runner needs a name" (index .item "name") }}'
     each: "{{ .gitlab_runner_register }}"
@@ -74,28 +74,28 @@ resources:
       - package[gitlab-runner]
       - line[gitlab-runner concurrent]
       - line[gitlab-runner check_interval]
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 
   # Both ways at once would have fleetreeve and gitlab-runner overwrite each other.
   - exec: fleetreeve.gitlab_runner cannot both write and register runners
     command: 'echo "set gitlab_runners or gitlab_runner_register on a host, not both" >&2; exit 1'
     unless: "false"
-    when: and .gitlab_runners .gitlab_runner_register
+    when: gitlab_runners and gitlab_runner_register
 
   - service: gitlab-runner
     ensure: running
     enabled: true
     require: package[gitlab-runner]
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 
   # Optional: run `docker` executors on podman, through its Docker-
   # compatible socket. No Docker installation is needed.
   - package: podman
-    when: and .gitlab_runner_podman (eq .facts.os.family "redhat")
+    when: gitlab_runner_podman and facts.os.family == "redhat"
 
   - service: podman.socket
     ensure: running
     enabled: true
     require: package[podman]
     before: service[gitlab-runner]
-    when: and .gitlab_runner_podman (eq .facts.os.family "redhat")
+    when: gitlab_runner_podman and facts.os.family == "redhat"

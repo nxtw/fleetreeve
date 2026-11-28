@@ -125,6 +125,7 @@ func funcs(data map[string]any) template.FuncMap {
 		},
 		"b64enc": func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"env":    os.Getenv, // environment of the controller
+		"__true": truthy,    // for conditions (when.go)
 	}
 }
 
@@ -181,14 +182,19 @@ func evalExpr(expr string, data map[string]any) (any, error) {
 	return captured, nil
 }
 
-// evalWhen evaluates a condition: a bare expression (`eq .facts.os.family
-// "debian"`) or a template whose output is tested for truthiness.
+// evalWhen evaluates a condition: written as one reads it
+// (`facts.os.family == "debian"`, see when.go), as a template expression
+// (`eq .facts.os.family "debian"`), or as a template whose output is
+// tested for truthiness.
 func evalWhen(expr string, data map[string]any) (bool, error) {
 	var v any
 	var err error
 	if strings.Contains(expr, "{{") {
 		v, err = eval(expr, data)
 	} else {
+		if expr, err = whenExpr(expr); err != nil {
+			return false, err
+		}
 		v, err = evalExpr(expr, data)
 	}
 	return truthy(v), err

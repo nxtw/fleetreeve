@@ -35,5 +35,5 @@ resources:
 
   # Only on hosts in the web group.
   - file: "{{ .root }}/{{ .host.name }}/web.marker"
-    when: contains "web" .host.groups
+    when: host.groups has "web"
     content: "{{ .replicas }} replicas\n"

@@ -171,7 +171,7 @@ include:
   - {module: acme.app, role: tls}            # roles/tls.yaml
   - module: acme.app                         # with a condition and its own values
     role: worker
-    when: contains "workers" .host.groups
+    when: host.groups has "workers"
     vars: {worker_count: 4}
 ```
 
@@ -241,10 +241,10 @@ resources:
   - exec: acme.app supports the Red Hat family only
     command: 'echo "this host is {{ .facts.os.pretty }}" >&2; exit 1'
     unless: "false"
-    when: ne .facts.os.family "redhat"
+    when: facts.os.family != "redhat"
 
   - package: app-server
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 ```
 
 **Insist on what you cannot do without.** The `required` template function
@@ -336,7 +336,7 @@ every resource:
 resources:
   - acme.app.instance: blue            # <module>.<type>: <title>
     port: 8080
-    when: contains "app" .host.groups
+    when: host.groups has "app"
     require: package[app-server]
     notify: service[haproxy]
 
@@ -435,7 +435,7 @@ resources:
     content: "on\n"
 
   - file: "{{ .app_root }}/{{ .title }}/debug"
-    when: contains "debug" .features
+    when: features has "debug"
     content: "on\n"
 
   - service: "app@{{ .title }}"
@@ -857,7 +857,7 @@ resources:
     tags: [feature]
 
   - file: "{{ .app_root }}/{{ .title }}/debug"
-    when: contains "debug" .features
+    when: features has "debug"
     content: "on\n"
 ```
 

@@ -13,7 +13,7 @@ resources:
   # Debian ships its default site as a separate file; RHEL has none.
   - file: /etc/nginx/sites-enabled/default
     ensure: absent
-    when: eq .facts.os.family "debian"
+    when: facts.os.family == "debian"
     require: package[nginx]
     notify: service[nginx]
 

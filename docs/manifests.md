@@ -9,7 +9,7 @@ vars:                              # defaults; lowest precedence
 include:
   - roles/base.yaml
   - manifest: roles/web.yaml       # a manifest is a reusable role
-    when: contains "web" .host.groups
+    when: host.groups has "web"
     vars: {http_port: 8080}
 
 resources:
@@ -33,7 +33,7 @@ resources:
     uid: "{{ .item.uid }}"
 
   - package: chrony
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 ```
 
 **Resource types:** `file`, `line`, `package`, `service`, `exec`, `user`,
@@ -42,6 +42,36 @@ resources:
 
 **Metaparameters** (any resource): `require`, `before`, `notify`,
 `subscribe`, `when`, `each`, `rollback`. References are written `type[title]`.
+
+**Conditions** (`when:`) are written the way they are read. Variables are
+named as they are, without braces or a leading dot:
+
+```yaml
+when: facts.os.family == "redhat"
+when: docker_repo and facts.os.family == "redhat"
+when: host.groups has "web"
+when: not sudo and (env != "production" or uid > 0)
+```
+
+| | |
+| --- | --- |
+| a variable on its own | true unless it is `false`, `0`, empty (text, list or map), or one of the texts `false`, `no`, `off`, `0` |
+| `==` `!=` `<` `<=` `>` `>=` | comparing two values |
+| `list has item`, `item in list`, `item not in list` | membership; with two texts, whether one is part of the other |
+| `not`, `and`, `or` | in that order of precedence: `not a and b or c` is `((not a) and b) or c`. Brackets group otherwise |
+| `name.field`, `name["a-key"]`, `list[0]` | a field of a map; a key that is not a plain name; an item by position |
+| `"text"`, `'text'`, `12`, `true`, `false` | values |
+| `f(a, b)` | a function from the list below: `defined("item.shell")`, `len(keys) > 1` |
+
+A condition is available on every resource and on every `include`. A
+variable that does not exist is a compile error, as everywhere; ask with
+`defined("name")` first for optional ones. A condition whose text would
+start with a quote needs quoting as a whole in YAML, which `has` avoids:
+`host.groups has "web"` rather than `'"web" in host.groups'`.
+
+Conditions can also be written as template expressions, which is how they
+were written up to version 0.1.3: `and .docker_repo (eq .facts.os.family
+"redhat")`. That form keeps working and means the same.
 
 **Templating** is Go `text/template`, in any string and in `template:` files.
 Variables are at the top level (`{{ .http_port }}`); also available are
