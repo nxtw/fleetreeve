@@ -18,6 +18,10 @@ minor version may change behaviour, and this file says where.
     This uses the root token kept on the machine; without it the log
     says what to run.
 
+  The token file sits in a directory that belongs to the server's own
+  user. Root now writes it, and the copy of Vault's CA beside it, without
+  following a symbolic link placed there, in `setup` as well.
+
   A server set up with an earlier version still has a 24-hour token. It
   gets a 30-day one the first time the old one has to be replaced. To
   have it at once, make a new token with `fleetreeve vault setup` and

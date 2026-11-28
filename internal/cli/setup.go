@@ -429,7 +429,7 @@ func vaultApply(ctx context.Context, o *options, ans *setupAnswers, tokenFile st
 		vo := *o
 		vo.vaultAddr, vo.vaultPKI, vo.vaultRole, vo.vaultCA = ans.VaultAddr, ans.VaultPKI, ans.VaultRole, ans.VaultCA
 		works := false
-		if b, err := os.ReadFile(tokenFile); err == nil {
+		if b, err := readOwned(tokenFile); err == nil {
 			if v, err := vaultClient(&vo, strings.TrimSpace(string(b))); err == nil && v.Check(ctx) == nil && v.TestSign(ctx) == nil {
 				works = true
 			}
@@ -464,7 +464,11 @@ func vaultApply(ctx context.Context, o *options, ans *setupAnswers, tokenFile st
 				return err
 			}
 		} else {
-			b, err := os.ReadFile(ans.VaultToken)
+			read := os.ReadFile
+			if ans.VaultToken == tokenFile {
+				read = readOwned // it may be in the server user's directory
+			}
+			b, err := read(ans.VaultToken)
 			if err != nil {
 				return err
 			}
@@ -478,14 +482,23 @@ func vaultApply(ctx context.Context, o *options, ans *setupAnswers, tokenFile st
 				return fmt.Errorf("the Vault token in %s does not do: %v", ans.VaultToken, err)
 			}
 			if ans.VaultToken != tokenFile {
-				if err := os.WriteFile(tokenFile, b, 0o600); err != nil {
+				if err := writeOwned(tokenFile, b, 0o600, uid, gid); err != nil {
 					return err
 				}
 			}
 			step("Vault: the token can sign with role %s, and revoke", ans.VaultRole)
 		}
-		os.Chmod(tokenFile, 0o600)
-		if err := os.Chown(tokenFile, uid, gid); err != nil {
+		// Owner and mode, on the file itself and not on whatever its name
+		// may point to by now: its directory may be the server user's.
+		f, err := openOwned(tokenFile, os.O_WRONLY, 0)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := f.Chmod(0o600); err != nil {
+			return err
+		}
+		if err := f.Chown(uid, gid); err != nil {
 			return err
 		}
 	}
