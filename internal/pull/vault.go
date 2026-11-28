@@ -139,6 +139,65 @@ func (v *Vault) Check(ctx context.Context) error {
 	return nil
 }
 
+// TokenAlive reports whether Vault still takes this token. It is false
+// when Vault refuses the token, and also when Vault still answers for a
+// token whose time is up: after a start Vault takes a moment to clear
+// those away, and a server started in that moment would find its token
+// gone the next. An error means Vault could not be asked.
+func (v *Vault) TokenAlive(ctx context.Context) (bool, error) {
+	b, err := v.call(ctx, http.MethodGet, "auth/token/lookup-self", nil, true)
+	if err != nil {
+		if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "invalid token") {
+			return false, nil
+		}
+		return false, err
+	}
+	var self struct {
+		Data struct {
+			ExpireTime *time.Time `json:"expire_time"`
+		}
+	}
+	if json.Unmarshal(b, &self) == nil && self.Data.ExpireTime != nil && !self.Data.ExpireTime.After(time.Now()) {
+		return false, nil
+	}
+	return true, nil
+}
+
+// ServerTokenPeriod is how long the server's token lives without being
+// renewed. The server renews it hourly, so this is how long the server
+// may be off - a machine switched off over a holiday - before its token
+// is gone.
+const ServerTokenPeriod = "720h"
+
+// ServerToken makes a token for the fleetreeve server, with the policy Setup
+// wrote. It takes a token that may administer Vault. orphan says whether
+// the new token stands on its own, or ends when the one used here does.
+func (v *Vault) ServerToken(ctx context.Context, period string) (token string, orphan bool, err error) {
+	if period == "" {
+		period = ServerTokenPeriod
+	}
+	policy := "fleetreeve-" + v.Mount + "-" + v.Role
+	req := map[string]any{"policies": []string{policy}, "period": period, "display_name": "fleetreeve-server", "no_default_policy": false}
+	// Not a child of the administrator's token, whose end would be its end.
+	orphan = true
+	b, err := v.call(ctx, http.MethodPost, "auth/token/create-orphan", req, true)
+	if err != nil {
+		orphan = false
+		if b, err = v.call(ctx, http.MethodPost, "auth/token/create", req, true); err != nil {
+			return "", false, err
+		}
+	}
+	var resp struct {
+		Auth struct {
+			ClientToken string `json:"client_token"`
+		}
+	}
+	if json.Unmarshal(b, &resp) != nil || resp.Auth.ClientToken == "" {
+		return "", false, fmt.Errorf("Vault's answer held no token")
+	}
+	return resp.Auth.ClientToken, orphan, nil
+}
+
 // RenewSelf extends the token's life; a periodic token stays valid as
 // long as this is done within its period.
 func (v *Vault) RenewSelf(ctx context.Context) error {
@@ -231,7 +290,7 @@ func (v *Vault) Setup(ctx context.Context, s VaultSetup) (token string, did []st
 		s.CAName = "fleetreeve hosts CA"
 	}
 	if s.Period == "" {
-		s.Period = "24h"
+		s.Period = ServerTokenPeriod
 	}
 	// The engine.
 	b, err := v.call(ctx, http.MethodGet, "sys/mounts", nil, true)
@@ -298,26 +357,16 @@ func (v *Vault) Setup(ctx context.Context, s VaultSetup) (token string, did []st
 		return "", did, err
 	}
 	did = append(did, "policy "+policy+": sign with those roles, and revoke")
-	req := map[string]any{"policies": []string{policy}, "period": s.Period, "display_name": "fleetreeve-server", "no_default_policy": false}
-	// Not a child of the administrator's token, whose end would be its end.
-	b, err = v.call(ctx, http.MethodPost, "auth/token/create-orphan", req, true)
+	token, orphan, err := v.ServerToken(ctx, s.Period)
 	if err != nil {
-		if b, err = v.call(ctx, http.MethodPost, "auth/token/create", req, true); err != nil {
-			return "", did, err
-		}
-		did = append(did, "a token for the server (a child of the token used here: it ends when that one does)")
+		return "", did, err
+	}
+	if orphan {
+		did = append(did, "a token for the server (periodic: the server renews it hourly, and it lives for 30 days without that)")
 	} else {
-		did = append(did, "a token for the server (periodic: it lives as long as the server renews it, which it does hourly)")
+		did = append(did, "a token for the server (a child of the token used here: it ends when that one does)")
 	}
-	var resp struct {
-		Auth struct {
-			ClientToken string `json:"client_token"`
-		}
-	}
-	if json.Unmarshal(b, &resp) != nil || resp.Auth.ClientToken == "" {
-		return "", did, fmt.Errorf("Vault's answer held no token")
-	}
-	return resp.Auth.ClientToken, did, nil
+	return token, did, nil
 }
 
 // TestSign proves the token can do its work: it has a throwaway request

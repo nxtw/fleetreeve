@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -294,7 +295,7 @@ func vaultUnseal(ctx context.Context, o *options) error {
 	}
 	if !sealed {
 		fmt.Println("Vault is not sealed.")
-		return nil
+		return renewServerToken(ctx, o)
 	}
 	key := ""
 	if b, err := os.ReadFile(vaultUnsealKey); err == nil {
@@ -314,7 +315,7 @@ func vaultUnseal(ctx context.Context, o *options) error {
 		return err
 	}
 	fmt.Println("Vault is unsealed.")
-	return nil
+	return renewServerToken(ctx, o)
 }
 
 // waitReady waits for an unsealed Vault to take up work, which takes it
@@ -404,4 +405,91 @@ func splitList(s string) []string {
 		}
 	}
 	return out
+}
+
+var vaultFlag = regexp.MustCompile(`-vault-(pki|role)[ =](\S+)`)
+
+// renewServerToken gives the fleetreeve server on this machine a new Vault
+// token when the one it has is gone. The server keeps its token alive by
+// renewing it; a machine that was off for longer than the token's period
+// comes back with a token Vault no longer takes, and the server would
+// refuse to start. Where Vault was deployed here its root token is on
+// this machine too, so what an administrator would do by hand is done
+// here: at every start of Vault, right after it is unsealed and before
+// the server starts.
+//
+// It does nothing where there is nothing to do or nothing to do it with:
+// no Vault deployed here, no server token, no root token (taken away, as
+// the documentation suggests for more security), or a token that works.
+// Failing here must not keep Vault from counting as started, so problems
+// are said, not returned.
+func renewServerToken(ctx context.Context, o *options) error {
+	if !vaultDeployed() {
+		return nil
+	}
+	// Where the server keeps its token, and how it is told to use Vault.
+	tokenFile, unit := "", ""
+	for _, c := range [][2]string{
+		{ctrVaultDir + "/token", setupContainer}, // the server in a container
+		{setupVaultToken, filepath.Join(setupUnitDir, "fleetreeve-server.service")},
+	} {
+		if _, err := os.Stat(c[0]); err == nil {
+			tokenFile, unit = c[0], c[1]
+			break
+		}
+	}
+	if tokenFile == "" {
+		return nil
+	}
+	b, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return nil
+	}
+	so := *o
+	so.vaultPKI, so.vaultRole = "", ""
+	if def, err := os.ReadFile(unit); err == nil {
+		for _, m := range vaultFlag.FindAllStringSubmatch(string(def), -1) {
+			if m[1] == "pki" {
+				so.vaultPKI = m[2]
+			} else {
+				so.vaultRole = m[2]
+			}
+		}
+	}
+	server, err := vaultClient(&so, strings.TrimSpace(string(b)))
+	if err != nil {
+		return nil
+	}
+	alive, err := server.TokenAlive(ctx)
+	if err != nil {
+		fmt.Printf("The fleetreeve server's Vault token could not be checked: %v\n", err)
+		return nil
+	}
+	if alive {
+		return nil
+	}
+	root, err := os.ReadFile(vaultRootToken)
+	if err != nil {
+		fmt.Printf("The fleetreeve server's Vault token (%s) is no longer accepted - it runs out when the server has not renewed it for its period, as when this machine was off - and Vault's root token is not in %s to make a new one with. Make one with:\n  VAULT_TOKEN=<an administrator's token> fleetreeve vault setup -vault-addr %s -vault-ca %s -vault-token-file %s\n",
+			tokenFile, vaultRootToken, o.vaultAddr, o.vaultCA, tokenFile)
+		return nil
+	}
+	admin, err := vaultClient(&so, strings.TrimSpace(string(root)))
+	if err != nil {
+		return nil
+	}
+	token, _, err := admin.ServerToken(ctx, "")
+	if err != nil {
+		fmt.Printf("The fleetreeve server's Vault token is no longer accepted, and making a new one failed: %v\n", err)
+		return nil
+	}
+	// In place: the file keeps its owner, the user the server runs as.
+	if err := os.WriteFile(tokenFile, []byte(token+"\n"), 0o600); err != nil {
+		fmt.Printf("The fleetreeve server's Vault token is no longer accepted, and the new one could not be written: %v\n", err)
+		return nil
+	}
+	fmt.Printf("The fleetreeve server's Vault token had run out (it does when the server has not renewed it for its period, as when this machine was off). A new one is in %s.\n", tokenFile)
+	// A server that is running holds the old token in memory.
+	exec.CommandContext(ctx, "systemctl", "try-restart", "--no-block", "fleetreeve-server.service").Run()
+	return nil
 }
