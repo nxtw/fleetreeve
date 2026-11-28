@@ -11,7 +11,7 @@ half the job.
 include:
   - manifest: roles/…
   - module: fleetreeve.gitlab_runner
-    when: contains "ci" .host.groups
+    when: host.groups has "ci"
 ```
 
 ```yaml

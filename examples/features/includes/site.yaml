@@ -26,4 +26,4 @@ include:
       aliases: [store, checkout]
 
   - manifest: metrics.yaml      # included only when the condition holds
-    when: .with_metrics
+    when: with_metrics

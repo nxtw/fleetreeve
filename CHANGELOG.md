@@ -4,6 +4,19 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
+## Unreleased
+
+- **Conditions can be written the way they are read.**
+  `when: docker_repo and facts.os.family == "redhat"` instead of
+  `when: and .docker_repo (eq .facts.os.family "redhat")`, and
+  `when: host.groups has "web"` instead of
+  `when: contains "web" .host.groups`. There are `==`, `!=`, `<`, `<=`,
+  `>`, `>=`, `has`, `in`, `not in`, `not`, `and`, `or`, brackets, and
+  functions written `f(a, b)`; see
+  [Manifests](docs/manifests.md). Conditions written the old way keep
+  working and mean the same, so nothing has to be changed. Mistakes such
+  as `=` for `==` or `&&` for `and` are explained.
+
 ## 0.1.3
 
 - **Hosts that have fleetreeve as a package now follow their server's

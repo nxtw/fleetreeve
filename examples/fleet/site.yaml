@@ -43,14 +43,14 @@ include:
   # dependency graph leaves a choice fleetreeve keeps the written order, so port
   # labels and firewall rules are in place before the services start.
   - manifest: roles/selinux.yaml
-    when: and (eq .facts.os.family "redhat") (ne .facts.selinux "disabled")
+    when: facts.os.family == "redhat" and facts.selinux != "disabled"
   - module: fleetreeve.firewalld               # from modules/: firewalld and a port type
-    when: eq .facts.os.family "redhat"
+    when: facts.os.family == "redhat"
 
   # By group.
   - manifest: roles/web.yaml
-    when: contains "web" .host.groups
+    when: host.groups has "web"
   - manifest: roles/loadbalancer.yaml
-    when: contains "lb" .host.groups
+    when: host.groups has "lb"
   - manifest: roles/postgres.yaml
-    when: contains "db" .host.groups
+    when: host.groups has "db"

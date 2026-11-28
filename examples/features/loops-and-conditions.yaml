@@ -36,10 +36,10 @@ resources:
       shell = {{ .item.shell }}
       role  = {{ if .item.admin }}admin{{ else }}user{{ end }}
 
-  # each combined with when: the condition sees .item.
+  # each combined with when: the condition sees the item.
   - file: "{{ .root }}/users/{{ .item.name }}.sudo"
     each: "{{ .users }}"
-    when: .item.admin
+    when: item.admin
     content: "{{ .item.name }} ALL=(ALL) NOPASSWD: ALL\n"
 
   # each over a map.
@@ -54,11 +54,11 @@ resources:
   # when on facts and variables. A bare expression; `and`, `or`, `not`,
   # `eq`, `ne`, `lt`, `gt` are available.
   - file: "{{ .root }}/debug.flag"
-    when: ne .env "production"
+    when: env != "production"
     content: "debug on\n"
 
   - file: "{{ .root }}/platform"
-    when: or (eq .facts.os.family "darwin") (eq .facts.kernel.name "linux")
+    when: facts.os.family == "darwin" or facts.kernel.name == "linux"
     content: |
       family  = {{ .facts.os.family }}
       init    = {{ .facts.init }}
