@@ -146,7 +146,7 @@ path "pki/sign/fleetreeve-web" { capabilities = ["update"] }   # only for the we
 path "pki/revoke"         { capabilities = ["update"] }
 POLICY
 
-vault token create -policy=fleetreeve -period=24h -field=token > /etc/fleetreeve/vault.token
+vault token create -policy=fleetreeve -period=720h -field=token > /etc/fleetreeve/vault.token
 ```
 
 `key_type=any` matters: hosts make elliptic-curve keys, which a role
@@ -155,6 +155,17 @@ limited to RSA refuses. Restrict `allowed_domains` instead of
 *periodic* (`-period`): the server renews it every hour, so it lives as
 long as the server runs; the server refuses to start with a token that
 is about to expire and cannot be renewed.
+
+**The period is how long the server may be off.** A periodic token that
+nobody renews for its period is gone, and a server that then starts
+finds Vault refusing its token and stops with a message saying so.
+`fleetreeve vault setup` and `fleetreeve setup` make tokens with a period
+of 30 days (`720h`), so that a machine switched off over a holiday comes
+back by itself; versions before 0.1.5 used 24 hours. If it does happen,
+with a Vault of your own: make a new token as above (or run `fleetreeve
+vault setup` again, which keeps what is there and writes a new token) and
+start the server. With Vault deployed by fleetreeve it is repaired
+without you, see the next section.
 
 ## No Vault yet: running one in a container
 
@@ -222,10 +233,21 @@ anew.
   new one.
 - **The root token may do anything in Vault.** Use it to make yourself
   another way in (an administrator's policy and login of your own),
-  store it somewhere safe, and delete the file. fleetreeve does not need it
-  again: the server has its own token, which may sign and revoke and
+  store it somewhere safe, and delete the file. fleetreeve needs it for one
+  thing only, replacing the server's token should that run out (below);
+  the server itself has its own token, which may sign and revoke and
   nothing else. (Running `fleetreeve setup` again keeps that token as long as
   it works.)
+- **After the machine was off for a long time, the server's token is
+  replaced by itself.** The server keeps its token alive by renewing it;
+  when the machine was off for longer than the token's period, Vault no
+  longer takes it. Each time Vault starts, right after it is unsealed and
+  before the fleetreeve server starts, the token is checked, and when it is
+  gone a new one is made with the root token and put in the server's
+  token file (`journalctl -u fleetreeve-vault` says when that happened).
+  This needs the root token on the machine: if you took it away, as
+  suggested above, the same place in the log gives the command to make a
+  token with an administrator's token instead.
 - **The port is not opened in the firewall.** Hosts never talk to Vault;
   only the fleetreeve server does, on the same machine. Open it
   (`firewall-cmd --add-port=8200/tcp --permanent`) only if you want to
@@ -459,6 +481,12 @@ from the hosts, so they simply count again.
 | *this is not the current certificate of …* | a certificate that was since replaced is being shown | on the host itself this does not normally happen; elsewhere it is a copy of an old certificate being tried |
 | *the server has no record of a certificate for …* | the host was started over on the server | nothing: the host drops the old certificate and asks again at the same run |
 | *the certificate authority did not sign the request* | Vault refused or could not be reached | the message carries Vault's own words; most often the role (`key_type`, allowed names) or the token's policy |
+
+The server itself can be refused too:
+
+| The server's log says | It means | Do |
+| --- | --- | --- |
+| *the Vault token is not accepted* (and the service keeps restarting) | the server's token ran out: it was not renewed for its period, as when the machine was off for long. Or it was revoked | with Vault deployed by fleetreeve: `sudo systemctl restart fleetreeve-vault`, which replaces the token. Otherwise `fleetreeve vault setup` with an administrator's token, then start the server |
 
 ## Things to know
 

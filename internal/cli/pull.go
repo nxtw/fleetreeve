@@ -84,6 +84,9 @@ func serve(ctx context.Context, o *options) error {
 			return fmt.Errorf("certificates for hosts need the server itself to use TLS: give -tls-cert and -tls-key")
 		}
 		if err := vault.Check(ctx); err != nil {
+			if strings.Contains(err.Error(), "token is not accepted") {
+				err = fmt.Errorf("%v\n       A token runs out when the server has not renewed it for its period, as when this machine was off for long. With Vault deployed on this machine, `sudo systemctl restart fleetreeve-vault` makes a new one; otherwise `fleetreeve vault setup` does (see docs/certificates.md)", err)
+			}
 			return err
 		}
 		if o.certsDir == "" && o.reports != "" {

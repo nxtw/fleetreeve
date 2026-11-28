@@ -4,6 +4,26 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
+## Unreleased
+
+- **Fixed: a server with Vault did not come back after its machine had
+  been off for more than a day.** The server's Vault token lived 24 hours
+  without being renewed; after a longer stop Vault refused it and the
+  server would not start ("the Vault token is not accepted"), so no host
+  could check in. Now:
+  - tokens made by `fleetreeve setup` and `fleetreeve vault setup` live 30
+    days without renewal;
+  - where Vault was deployed by fleetreeve, the token is checked each time
+    Vault starts and replaced when it is gone, before the server starts.
+    This uses the root token kept on the machine; without it the log
+    says what to run.
+
+  A server set up with an earlier version still has a 24-hour token. It
+  gets a 30-day one the first time the old one has to be replaced. To
+  have it at once, make a new token with `fleetreeve vault setup` and
+  restart the server; [certificates](docs/certificates.md) has the
+  command.
+
 ## 0.1.4
 
 - **Conditions can be written the way they are read.**
