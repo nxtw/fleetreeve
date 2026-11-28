@@ -192,12 +192,44 @@ func evalWhen(expr string, data map[string]any) (bool, error) {
 	if strings.Contains(expr, "{{") {
 		v, err = eval(expr, data)
 	} else {
+		written := expr
 		if expr, err = whenExpr(expr); err != nil {
 			return false, err
 		}
-		v, err = evalExpr(expr, data)
+		if v, err = evalExpr(expr, data); err != nil && expr != written {
+			err = whenError(written, err)
+		}
 	}
 	return truthy(v), err
+}
+
+var (
+	whenInternals = regexp.MustCompile(`^<[^>]*>: (error calling \w+: )?`)
+	whenNoKey     = regexp.MustCompile(`map has no entry for key "([^"]+)"`)
+	whenTypes     = regexp.MustCompile(`incompatible types for comparison: (\w+) and (\w+)`)
+)
+
+// whenError says what went wrong in a condition in the terms it was
+// written in, not in those of the template it was translated to.
+func whenError(written string, err error) error {
+	msg := whenInternals.ReplaceAllString(err.Error(), "")
+	kind := func(t string) string {
+		switch {
+		case t == "string":
+			return "a text"
+		case t == "bool":
+			return "true/false"
+		case strings.HasPrefix(t, "int") || strings.HasPrefix(t, "uint") || strings.HasPrefix(t, "float"):
+			return "a number"
+		}
+		return "a " + t
+	}
+	if m := whenNoKey.FindStringSubmatch(msg); m != nil {
+		msg = fmt.Sprintf("there is no variable or field %q (ask with defined(\"...\") first if it is optional)", m[1])
+	} else if m := whenTypes.FindStringSubmatch(msg); m != nil {
+		msg = fmt.Sprintf("it compares %s with %s; write both sides as the same kind (\"8080\" is a text, 8080 a number)", kind(m[1]), kind(m[2]))
+	}
+	return fmt.Errorf("in the condition `%s`: %s", strings.TrimSpace(written), msg)
 }
 
 // renderAny expands every string in a nested value.

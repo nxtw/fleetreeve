@@ -4,7 +4,7 @@ What changed for users, newest first. Versions follow
 [semantic versioning](https://semver.org); while the major version is 0, a
 minor version may change behaviour, and this file says where.
 
-## Unreleased
+## 0.1.4
 
 - **Conditions can be written the way they are read.**
   `when: docker_repo and facts.os.family == "redhat"` instead of
@@ -15,7 +15,10 @@ minor version may change behaviour, and this file says where.
   functions written `f(a, b)`; see
   [Manifests](docs/manifests.md). Conditions written the old way keep
   working and mean the same, so nothing has to be changed. Mistakes such
-  as `=` for `==` or `&&` for `and` are explained.
+  as `=` for `==` or `&&` for `and` are explained, and so is comparing a
+  number with a text or naming a variable that does not exist. The new
+  section [Conditions](docs/manifests.md#conditions) has everything,
+  with the older form next to the new one.
 
 ## 0.1.3
 
